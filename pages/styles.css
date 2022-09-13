@@ -1,0 +1,69 @@
+
+.gameInfo{
+	display: table;
+	width: 450px;
+}
+.personalInfo{
+	display: table;
+	width: 250px;
+}
+.text {
+    font-family: Calibri;
+}
+.textBold {
+    font-weight: bold;
+}
+.textRight {
+    text-align: right;
+}
+.whiteText {
+    color: white;
+}
+.separator {
+    width: 1px;
+    background-color: white;
+    margin: 12px 6px 6px 6px;
+}
+.textShadow {
+    text-shadow: 2px 2px 5px black;
+}
+.boxHeader{
+    flex: 1;
+    display: flex;
+    flex-direction: row;
+    border-radius: 10px;
+    background-color: #414776;
+    box-shadow: 0 4px 8px 0 black;
+    font-size: 14px;
+}
+.boxSecondaryHeader{
+    font-weight: bold;
+    font-size: 13px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+}
+.boxHeaderCell{
+    flex: 1;
+    margin: 10px;
+}
+.boxRow{
+    display: flex;
+    flex-direction: row;
+}
+.boxRowWithUnderline{
+    display: flex;
+    flex-direction: row;
+    border-bottom: 1px dotted #505050
+}
+.boxCell{
+    flex: 1;
+    margin: 3px;
+}
+.boxWithShadow{
+    border-radius: 10px;
+    border: 1px solid black;
+    background-image: linear-gradient(to bottom right, #212766, #0E1134);
+}
+.invisible{
+    display: none;
+}
