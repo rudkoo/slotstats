@@ -60,6 +60,28 @@
 //    tabId = response;
 //});
 
+function messageHandler(event) {
+    console.log('CS :: message in from DOM', event.data);
+    
+    if (event.data.currentGame) {
+        console.log('CS :: message in from DOM; current game: ', event.data);
+        //chrome.tabs.getCurrent((tab) => { console.log(tab) })
+        //chrome.runtime.sendMessage("registerGame", function(asd) { console.log(asd) });
+        chrome.runtime.sendMessage({ id: "registerGame", gameId: event.data.currentGame }, function() {});
+        chrome.storage.local.set({"proba": "asdf"}, function() {
+            console.log('Value is set to asdf');
+        });
+    } else {
+        chrome.storage.local.set({"slotstats": event.data.provider + event.data.timestamp }, function() {
+            console.log('Value is set to ' + event.data.provider);
+        });
+    }
+    
+    chrome.storage.local.get(['registerGame'], function(result) {
+        console.log('Value currently is ' + result.registerGame);
+    });
+}
+
 function interceptData() {
     var xhrOverrideScript = document.createElement('script');
     //xhrOverrideScript.type = 'text/javascript';
@@ -74,37 +96,12 @@ function checkForDOM() {
     console.log('checkForDOM')
     if (document.body && document.head) {
         console.log('interceptData')
+        window.addEventListener("message", messageHandler);
         interceptData();
     } else {
         requestIdleCallback(checkForDOM);
     }
 }
-
-window.addEventListener("message", function(event) {
-    console.log('CS :: message in from DOM', event.data);
-    
-    if (event.data.currentGame) {
-        console.log('CS :: message in from DOM; current game: ', event.data);
-        //chrome.tabs.getCurrent((tab) => { console.log(tab) })
-        chrome.runtime.sendMessage("registerGame", function(asd) { console.log(asd) });
-        chrome.runtime.sendMessage({ id: "registerGame", gameId: event.data.currentGame }, function() {});
-        chrome.storage.local.set({"proba": "asdf"}, function() {
-            console.log('Value is set to asdf');
-        });
-    } else {
-        chrome.storage.local.set({"slotstats": event.data.provider + event.data.timestamp }, function() {
-            console.log('Value is set to ' + event.data.provider);
-        });
-    }
-    
-    chrome.storage.local.get(['registerGame'], function(result) {
-        console.log('Value currently is ' + result.registerGame);
-    });
-});
-
-//chrome.tabs.onActivated.addListener(
-//  callback: function,
-//)
 
 //interceptData()
 requestIdleCallback(checkForDOM);

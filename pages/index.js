@@ -12,6 +12,11 @@ chrome.storage.local.onChanged.addListener(function (changes, namespace) {
   }
 });
 
+chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
+    console.log("### from index.js" + msg);
+    sendResponse()
+});
+
 function updateColor() {
     let value = parseInt(document.getElementById("colorValue").value)
     let elements = document.getElementsByClassName("boxHeader")

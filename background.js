@@ -1,17 +1,130 @@
 
+let db = null;
+
+function createDatabase() {
+    //indexedDB.deleteDatabase('slotstatsDb');
+    const request = indexedDB.open('slotstatsDb', 1);
+    
+    request.onerror = function (event) {
+        console.log("Problem opening DB.");
+    }
+    
+    request.onupgradeneeded = function (event) {
+        db = event.target.result;
+        let version =  parseInt(db.version);
+        if (version == 1) {
+            let objectStoreGameStats = db.createObjectStore('game_stats', { keyPath: 'gameId' });
+            let objectStoreBetStats = db.createObjectStore('game_bet_stats', { keyPath: [ 'currency', 'gameId' ] });
+            let objectStoreActiveGames = db.createObjectStore('active_games', { keyPath: 'tabId' });
+        
+            objectStoreGameStats.transaction.oncomplete = function (event) {
+                console.log("objectStoreGameStats Created.");
+            }
+            objectStoreBetStats.transaction.oncomplete = function (event) {
+                console.log("objectStoreBetStats Created.");
+            }
+            objectStoreActiveGames.transaction.oncomplete = function (event) {
+                console.log("objectStoreActiveGames Created.");
+            }
+        }
+    }
+    
+    request.onsuccess = function (event) {
+        db = event.target.result;
+        console.log("DB OPENED.");
+        
+        db.onerror = function (event) {
+            console.log("FAILED TO OPEN DB.")
+        }
+    }
+}
+
+function insertRecords(records) {
+    if (db) {
+        const insert_transaction = db.transaction("game_stats", "readwrite");
+        const objectStore = insert_transaction.objectStore("game_stats");
+
+        return new Promise((resolve, reject) => {
+            insert_transaction.oncomplete = function () {
+                console.log("ALL INSERT TRANSACTIONS COMPLETE.");
+                resolve(true);
+            }
+
+            insert_transaction.onerror = function () {
+                console.log("PROBLEM INSERTING RECORDS.")
+                resolve(false);
+            }
+
+            records.forEach(person => {
+                let request = objectStore.add(person);
+
+                request.onsuccess = function () {
+                    console.log("Added: ", person);
+                }
+            });
+        });
+    }
+}
+
+function registerGame(tabId, gameId) {
+    if (db) {
+        const transaction = db.transaction("active_games", "readwrite");
+        const objectStore = transaction.objectStore("active_games");
+        const updateRequest = objectStore.put({ tabId: tabId, gameId: gameId });
+        updateRequest.onsuccess = () => {}
+    }
+}
+
+createDatabase();
+
+
 chrome.action.onClicked.addListener(function () {
-    chrome.tabs.create({ url: chrome.runtime.getURL("index.html") });
+    chrome.tabs.create({ url: chrome.runtime.getURL("pages/index.html") });
 });
 
-chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
-    if (msg.id === 'registerGame') {
-        console.log(sender);
-        chrome.storage.local.set({"registerGame": "registerGame_asd"}, function() {
-            console.log('Value is set to registerGame');
+chrome.tabs.onActivated.addListener(
+    function (activeInfo) {
+        console.log('### activate ### ');
+        chrome.storage.local.get(['registeredGames'], function(result) {
+            if (result.registeredGames && result.registeredGames[activeInfo.tabId]) {
+                console.log('### activate ' + result.registeredGames[activeInfo.tabId]);
+                chrome.storage.local.set({"activeGame": result.registeredGames[activeInfo.tabId] }, function() {});
+            }
         });
-        chrome.storage.local.get(['registerGame'], function(result) {
-        console.log('### Value currently is ' + result.registerGame);
-    });
+    }
+)
+
+chrome.tabs.onRemoved.addListener(
+    function (tabId, removeInfo) {
+        chrome.storage.local.get(['registeredGames'], function(result) {
+            if (result.registeredGames && result.registeredGames[tabId]) {
+                delete result.registeredGames[tabId]
+                chrome.storage.local.set({"registeredGames": result.registeredGames }, function() {});
+            }
+        });
+    }
+)
+
+chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
+    
+    if (msg.id === 'registerGame') {
+        
+        insert_records([ { gameId: "asd" }, { gameId: "asdaa" }]);
+        
+        console.log(sender);
+        chrome.storage.local.get(['registeredGames'], function(result) {
+            console.log('### Value currently is ' + result.registeredGames);
+            if (!result.registeredGames) {
+                chrome.storage.local.set({"registeredGames": {} }, function() {
+                    console.log('### 1');
+                });
+            } else {
+                result.registeredGames[sender.tab.id] = msg.gameId
+                chrome.storage.local.set({"registeredGames": result.registeredGames }, function() {
+                    console.log('### 2');
+                });
+            }
+        });
     }
     sendResponse()
 });
