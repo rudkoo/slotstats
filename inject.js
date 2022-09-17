@@ -72,9 +72,10 @@ function messageHandler(event) {
             console.log('Value is set to asdf');
         });
     } else {
-        chrome.storage.local.set({"slotstats": event.data.provider + event.data.timestamp }, function() {
-            console.log('Value is set to ' + event.data.provider);
-        });
+        //chrome.storage.local.set({"slotstats": event.data.provider + event.data.timestamp }, function() {
+        //    console.log('Value is set to ' + event.data.provider);
+        //});
+        chrome.runtime.sendMessage({ id: "saveSpin", data: event.data }, function() {});
     }
     
     chrome.storage.local.get(['registerGame'], function(result) {

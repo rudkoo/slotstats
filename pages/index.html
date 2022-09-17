@@ -2,8 +2,10 @@
 <html ng-app="" ng-csp="">
 <head>
     <script src="../lib/jquery.min.js"></script>
+    <script src="../lib/datatables.min.js"></script>
     <script src="index.js"></script>
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="../lib/datatables.min.css">
     <title>A Meaningful Page Title</title>
 </head>
 <body>
@@ -107,6 +109,27 @@
     </div>
 
     <input id="colorValue" type="range" style="background-color: red; color: red; background: red;"/>
+    
+    <table id="example" class="display" style="width:100%">
+        <thead>
+            <tr>
+                <th></th>
+                <th>Name</th>
+                <th>Position</th>
+                <th>Office</th>
+                <th>Salary</th>
+            </tr>
+        </thead>
+        <tfoot>
+            <tr>
+                <th></th>
+                <th>Name</th>
+                <th>Position</th>
+                <th>Office</th>
+                <th>Salary</th>
+            </tr>
+        </tfoot>
+    </table>
     
     max win
 max x

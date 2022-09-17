@@ -1,5 +1,7 @@
 
 let db = null;
+let lastActiveGame = null
+let statsPages = {}
 
 function createDatabase() {
     //indexedDB.deleteDatabase('slotstatsDb');
@@ -66,6 +68,34 @@ function insertRecords(records) {
     }
 }
 
+function getRecord(objectStoreId, key) {
+    if (db) {
+        const transaction = db.transaction(objectStoreId, "readwrite");
+        const objectStore = transaction.objectStore(objectStoreId);
+        const getRequest = objectStore.get(key);
+        
+        return new Promise((resolve, reject) => {
+            getRequest.onsuccess = (event) => {
+                resolve(getRequest.result)
+            };
+        })
+    }
+}
+
+function deleteRecord(objectStoreId, key) {
+    if (db) {
+        const transaction = db.transaction(objectStoreId, "readwrite");
+        const objectStore = transaction.objectStore(objectStoreId);
+        const deleteRequest = objectStore.delete(key);
+        
+        //return new Promise((resolve, reject) => {
+        //    transaction.oncomplete = () => {
+        //        resolve()
+        //    };
+        //})
+    }
+}
+
 function registerGame(tabId, gameId) {
     if (db) {
         const transaction = db.transaction("active_games", "readwrite");
@@ -75,8 +105,13 @@ function registerGame(tabId, gameId) {
     }
 }
 
-createDatabase();
-
+function activeGameChanged(activeGameId) {
+    //console.log('### active game changed ### : ' + activeGameId);
+    lastActiveGame = activeGameId
+    for (let statsPage in statsPages) {
+        chrome.tabs.sendMessage(parseInt(statsPage), { id: "activeGameChanged", gameId: activeGameId })
+    }
+}
 
 chrome.action.onClicked.addListener(function () {
     chrome.tabs.create({ url: chrome.runtime.getURL("pages/index.html") });
@@ -84,50 +119,45 @@ chrome.action.onClicked.addListener(function () {
 
 chrome.tabs.onActivated.addListener(
     function (activeInfo) {
-        console.log('### activate ### ');
-        chrome.storage.local.get(['registeredGames'], function(result) {
-            if (result.registeredGames && result.registeredGames[activeInfo.tabId]) {
-                console.log('### activate ' + result.registeredGames[activeInfo.tabId]);
-                chrome.storage.local.set({"activeGame": result.registeredGames[activeInfo.tabId] }, function() {});
+        getRecord("active_games", activeInfo.tabId).then((registeredGame) => {
+            if (registeredGame) {
+                activeGameChanged(registeredGame.gameId)
             }
-        });
+        })
     }
 )
 
 chrome.tabs.onRemoved.addListener(
     function (tabId, removeInfo) {
-        chrome.storage.local.get(['registeredGames'], function(result) {
-            if (result.registeredGames && result.registeredGames[tabId]) {
-                delete result.registeredGames[tabId]
-                chrome.storage.local.set({"registeredGames": result.registeredGames }, function() {});
-            }
-        });
+        deleteRecord("active_games", tabId)
+        if (statsPages[tabId]) {
+            delete statsPages[tabId]
+        }
     }
 )
 
 chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
     
     if (msg.id === 'registerGame') {
-        
-        insert_records([ { gameId: "asd" }, { gameId: "asdaa" }]);
-        
-        console.log(sender);
-        chrome.storage.local.get(['registeredGames'], function(result) {
-            console.log('### Value currently is ' + result.registeredGames);
-            if (!result.registeredGames) {
-                chrome.storage.local.set({"registeredGames": {} }, function() {
-                    console.log('### 1');
-                });
-            } else {
-                result.registeredGames[sender.tab.id] = msg.gameId
-                chrome.storage.local.set({"registeredGames": result.registeredGames }, function() {
-                    console.log('### 2');
-                });
-            }
-        });
+        registerGame(sender.tab.id, msg.gameId)
+        activeGameChanged(msg.gameId)
+    } else if (msg.id === 'registerStatsPage') {
+        //statsPages.push(sender.tab.id)
+        statsPages[sender.tab.id] = 1
+        if (lastActiveGame) {
+            chrome.tabs.sendMessage(sender.tab.id, { id: "activeGameChanged", gameId: lastActiveGame })
+        }
+    } else if (msg.id === 'saveSpin') {
+        console.log("### saveSpin ###");
+        for (let statsPage in statsPages) {
+            chrome.tabs.sendMessage(parseInt(statsPage), { id: "updateRecord" })
+        }
     }
     sendResponse()
 });
+
+
+createDatabase();
 
 
 //let patternJs = "https://*/app/fishtank2/js/fishtank2*js";

@@ -30,7 +30,6 @@
             const xhr = window.XMLHttpRequest;
             const processRequest = e => {
                     //this.handleXhrLoad(e)
-                    console.log("url: " + e.url + ", response: " + e.response)
                     const request = new HttpRequest(e);
                     this.notifyWatchers(request);
                 };
@@ -53,7 +52,6 @@
                         })
                     }));
                     events = ["onloadstart", "onprogress", "onabort", "onerror", "ontimeout", "onloadend"];
-                    console.log("2.1")
                     events.forEach((e => {
                         obj.wrappedObj[e] = function() {
                             obj[e] && obj[e].apply(obj, arguments)
