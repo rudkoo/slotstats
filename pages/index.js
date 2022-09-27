@@ -1,4 +1,6 @@
 var table = null
+var games = {}
+var gameBetStats = {}
 
 chrome.storage.local.onChanged.addListener(function (changes, namespace) {
     for (let [key, { oldValue, newValue }] of Object.entries(changes)) {
@@ -9,17 +11,21 @@ chrome.storage.local.onChanged.addListener(function (changes, namespace) {
     }
 });
 
-chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
+function messageHandler(msg, sender, sendResponse) {
     console.log("### from index.js: " + msg.id);
     if (msg.id == "activeGameChanged") {
         $("#name").text(msg.gameId)
     } else if (msg.id == "updateRecord") {
-        dataSet[0].name += "+"
-        console.log(dataSet[0].name)
-        table.row(0).data(dataSet[0])
+        updateRecord(msg.gameStats)
+    } else if (msg.id == "updateBetRecord") {
+        updateBetRecord(msg.betStats)
+    } else if (msg.id == "reloadRecords") {
+        reloadRecords(msg.data)
+    } else if (msg.id == "reloadBetRecords") {
+        reloadBetRecords(msg.data)
     }
     sendResponse()
-});
+}
 
 function updateColor() {
     let value = parseInt(document.getElementById("colorValue").value)
@@ -41,59 +47,93 @@ function updateColor() {
     }
 }
 
+function reloadRecords(data) {
+    console.log(data)
+    table.clear()
+    table.rows.add(data).draw()
+    games = {}
+    for (let i = 0; i < table.data().count(); ++i) {
+        let rowData = table.row(i).data()
+        games[rowData.gameId] = i
+    }
+}
+
+function reloadBetRecords(data) {
+    gameBetStats = {}
+    for (let record of data) {
+        updateBetRecord(record)
+    }
+}
+
+function updateRecord(gameStats) {
+    console.log(gameStats);
+    if (gameStats.gameId in games) {
+        let index = games[gameStats.gameId]
+        table.row(index).data(gameStats).draw()
+    } else {
+        table.row.add(gameStats).draw()
+        console.log(table.data().count())
+        games[gameStats.gameId] = table.data().count() - 1
+        console.log(games[gameStats.gameId])
+    }
+}
+
+function updateBetRecord(betStats) {
+    console.log(betStats);
+    if (!(betStats.gameId in gameBetStats)) {
+        gameBetStats[betStats.gameId] = {}
+    }
+    gameBetStats[betStats.gameId][betStats.currency] = betStats
+    if (betStats.gameId in games) {
+        let index = games[betStats.gameId]
+        table.row(index).draw()
+    }
+}
+
 window.addEventListener('load', (event) => {
-    document.getElementById("colorValue").addEventListener("input", function() { updateColor() })
-    chrome.runtime.sendMessage({ id: "registerStatsPage" }, function() {});
+    //document.getElementById("colorValue").addEventListener("input", function() { updateColor() })
+    //chrome.runtime.sendMessage({ id: "registerStatsPage" }, function() {});
 });
 
 function format(d) {
-    // `d` is the original data object for the row
-    return (
+    let betStats = gameBetStats[d.gameId]
+    let result = 
         '<table cellpadding="5" cellspacing="0" border="0" style="padding-left:50px;">' +
-        '<tr>' +
-        '<td>Full name:</td>' +
-        '<td>' +
-        d.name +
-        '</td>' +
-        '</tr>' +
-        '<tr>' +
-        '<td>Extension number:</td>' +
-        '<td>' +
-        d.extn +
-        '</td>' +
-        '</tr>' +
-        '<tr>' +
-        '<td>Extra info:</td>' +
-        '<td>And any further details here (images etc)...</td>' +
-        '</tr>' +
-        '</table>'
-    );
-}
-
-var dataSet = [
-    {
-      "id": "1",
-      "name": "Tiger Nixon",
-      "position": "System Architect",
-      "salary": "$320,800",
-      "start_date": "2011/04/25",
-      "office": "Edinburgh",
-      "extn": "5421"
-    },
-    {
-      "id": "2",
-      "name": "Garrett Winters",
-      "position": "Accountant",
-      "salary": "$170,750",
-      "start_date": "2011/07/25",
-      "office": "Tokyo",
-      "extn": "8422"
+            '<thead>' +
+                '<tr>' +
+                    '<th>Currency</th>' +
+                    '<th>Max win</th>' +
+                    '<th>Total bets</th>' +
+                    '<th>Total win</th>' +
+                    '<th>Total bonus wins</th>' +
+                    '<th>Total bonus buys</th>' +
+                    '<th>Profit/Loss</th>' +
+                '</tr>' +
+            '</thead>' +
+            '<tbody>'
+    for (let stats in betStats) {
+        result += 
+                '<tr>' +
+                    '<td>' + betStats[stats].currency + '</td>' +
+                    '<td>' + betStats[stats].max_win + '</td>' +
+                    '<td>' + betStats[stats].total_bets + '</td>' +
+                    '<td>' + betStats[stats].total_wins + '</td>' +
+                    '<td>' + betStats[stats].total_bonus_wins + '</td>' +
+                    '<td>' + betStats[stats].total_bonus_buys + '</td>' +
+                    '<td>' + betStats[stats].profit_loss + '</td>' +
+                '</tr>'
     }
-]
+            
+    result += 
+            '</tbody>' +
+        '</table>'
+    return result
+}
  
 $(document).ready(function () {
+    console.log("creating table")
     table = $('#example').DataTable({
-        data: dataSet,
+        data: [],
         columns: [
             {
                 className: 'dt-control',
@@ -101,10 +141,13 @@ $(document).ready(function () {
                 data: null,
                 defaultContent: '',
             },
-            { data: 'name' },
-            { data: 'position' },
-            { data: 'office' },
-            { data: 'salary' },
+            { data: 'gameId' },
+            { data: 'max_x' },
+            { data: 'avg_x' },
+            { data: 'bought_bonus_count' },
+            { data: 'free_bonus_count' },
+            { data: 'spin_count' },
+            { data: 'spin_count_since_bonus' }
         ],
         order: [[1, 'asc']],
     });
@@ -124,4 +167,9 @@ $(document).ready(function () {
             tr.addClass('shown');
         }
     });
+    
+    document.getElementById("colorValue").addEventListener("input", function() { updateColor() })
+    chrome.runtime.onMessage.addListener(messageHandler);
+    chrome.runtime.sendMessage({ id: "registerStatsPage" }, function() {});
+    chrome.runtime.sendMessage({ id: "getRecords" }, function() {});
 });

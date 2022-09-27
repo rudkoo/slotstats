@@ -61,21 +61,18 @@
 //});
 
 function messageHandler(event) {
-    console.log('CS :: message in from DOM', event.data);
-    
-    if (event.data.currentGame) {
-        console.log('CS :: message in from DOM; current game: ', event.data);
-        //chrome.tabs.getCurrent((tab) => { console.log(tab) })
-        //chrome.runtime.sendMessage("registerGame", function(asd) { console.log(asd) });
+    if (event.data.msgId == "registerGame") {
         chrome.runtime.sendMessage({ id: "registerGame", gameId: event.data.currentGame }, function() {});
-        chrome.storage.local.set({"proba": "asdf"}, function() {
-            console.log('Value is set to asdf');
-        });
-    } else {
+    }
+    else if (event.data.msgId == "saveSpin") {
+        console.log(event.data.spin)
+        chrome.runtime.sendMessage({ id: "saveSpin", data: event.data.spin }, function() {});
+    }
+    else {
         //chrome.storage.local.set({"slotstats": event.data.provider + event.data.timestamp }, function() {
         //    console.log('Value is set to ' + event.data.provider);
         //});
-        chrome.runtime.sendMessage({ id: "saveSpin", data: event.data }, function() {});
+        
     }
     
     chrome.storage.local.get(['registerGame'], function(result) {

@@ -1,10 +1,28 @@
+/*******************
+game_stats
+    - max x
+    - average x
+    - total number of spins
+    - spins since last bonus
+    - bought bonuses
+    - free bonuses
+    
+game_bet_stats
+    - max win
+    - total bets $
+    - total win $
+    - total bonus buys
+    - total bonus wins
+    - profit / loss
+    
+    
+********************/
 
 let db = null;
 let lastActiveGame = null
 let statsPages = {}
 
 function createDatabase() {
-    //indexedDB.deleteDatabase('slotstatsDb');
     const request = indexedDB.open('slotstatsDb', 1);
     
     request.onerror = function (event) {
@@ -16,7 +34,7 @@ function createDatabase() {
         let version =  parseInt(db.version);
         if (version == 1) {
             let objectStoreGameStats = db.createObjectStore('game_stats', { keyPath: 'gameId' });
-            let objectStoreBetStats = db.createObjectStore('game_bet_stats', { keyPath: [ 'currency', 'gameId' ] });
+            let objectStoreBetStats = db.createObjectStore('game_bet_stats', { keyPath: [ 'gameId', 'currency' ] });
             let objectStoreActiveGames = db.createObjectStore('active_games', { keyPath: 'tabId' });
         
             objectStoreGameStats.transaction.oncomplete = function (event) {
@@ -38,6 +56,9 @@ function createDatabase() {
         db.onerror = function (event) {
             console.log("FAILED TO OPEN DB.")
         }
+        ////// TEMP //////
+        //clearDatabase();
+        //////////////////
     }
 }
 
@@ -70,9 +91,24 @@ function insertRecords(records) {
 
 function getRecord(objectStoreId, key) {
     if (db) {
+        console.log(key)
         const transaction = db.transaction(objectStoreId, "readwrite");
         const objectStore = transaction.objectStore(objectStoreId);
         const getRequest = objectStore.get(key);
+        
+        return new Promise((resolve, reject) => {
+            getRequest.onsuccess = (event) => {
+                resolve(getRequest.result)
+            };
+        })
+    }
+}
+
+function getAllRecords(objectStoreId) {
+    if (db) {
+        const transaction = db.transaction(objectStoreId, "readwrite");
+        const objectStore = transaction.objectStore(objectStoreId);
+        const getRequest = objectStore.getAll();
         
         return new Promise((resolve, reject) => {
             getRequest.onsuccess = (event) => {
@@ -96,6 +132,24 @@ function deleteRecord(objectStoreId, key) {
     }
 }
 
+function clearObjectStore(objectStoreId) {
+    const transaction = db.transaction(objectStoreId, "readwrite");
+    transaction.oncomplete = (event) => {};
+    transaction.onerror = (event) => {};
+    const objectStore = transaction.objectStore(objectStoreId);
+    const clearRequest = objectStore.clear();
+    clearRequest.onsuccess = (event) => {
+        console.log("Object store cleared: " + objectStoreId)
+    };
+}
+
+function clearDatabase() {
+    console.log("Clearing database")
+    clearObjectStore("game_stats")
+    clearObjectStore("game_bet_stats")
+    clearObjectStore("active_games")
+}
+
 function registerGame(tabId, gameId) {
     if (db) {
         const transaction = db.transaction("active_games", "readwrite");
@@ -110,6 +164,91 @@ function activeGameChanged(activeGameId) {
     lastActiveGame = activeGameId
     for (let statsPage in statsPages) {
         chrome.tabs.sendMessage(parseInt(statsPage), { id: "activeGameChanged", gameId: activeGameId })
+    }
+}
+
+function saveSpin(spin) {
+    console.log("### saveSpin ### " + spin);
+    if (spin.gameId != "unknown") {
+        getRecord('game_stats', spin.gameId).then((gameStats) => {
+            if (!gameStats) {
+                gameStats = {}
+                gameStats.gameId = spin.gameId
+                gameStats.max_x = spin.isBonus ? spin.multiplier : 0
+                gameStats.avg_x = spin.isBonus ? spin.multiplier : 0
+                gameStats.bonus_count = spin.isBonus ? 1 : 0
+                gameStats.spin_count = spin.isBonus ? 0 : 1
+                gameStats.spin_count_since_bonus = spin.isBonus ? 0 : 1
+                gameStats.bought_bonus_count = 0
+                gameStats.free_bonus_count = 0
+                if (spin.isBonus) {
+                    if (spin.bonusPrice > 0) {
+                        gameStats.bought_bonus_count = 1
+                    } else {
+                        gameStats.free_bonus_count = 1
+                    }
+                }
+            } else {
+                if (spin.isBonus) {
+                    gameStats.max_x = Math.max(gameStats.max_x, spin.multiplier)
+                    gameStats.avg_x = ((gameStats.avg_x * gameStats.bonus_count + spin.multiplier) / (gameStats.bonus_count + 1)).toFixed(2)
+                    gameStats.bonus_count += 1
+                    if (spin.bonusPrice > 0) {
+                        gameStats.bought_bonus_count += 1
+                    } else {
+                        gameStats.free_bonus_count += 1
+                        gameStats.spin_count_since_bonus = 0
+                    }
+                } else {
+                    if (!spin.continued) {
+                        console.log(" ### new spin ###")
+                        gameStats.spin_count += 1
+                        gameStats.spin_count_since_bonus += 1
+                    }
+                }
+            }
+            gameStats.last_played = spin.timestamp
+            const transaction = db.transaction("game_stats", "readwrite");
+            const objectStore = transaction.objectStore("game_stats");
+            const updateRequest = objectStore.put(gameStats);
+            updateRequest.onsuccess = () => {
+                for (let statsPage in statsPages) {
+                    chrome.tabs.sendMessage(parseInt(statsPage), { id: "updateRecord", gameStats: gameStats })
+                }
+            }
+        })
+        
+        getRecord('game_bet_stats', [spin.gameId, spin.currency]).then((betStats) => {
+            if (!betStats) {
+                betStats = {}
+                betStats.gameId = spin.gameId
+                betStats.currency = spin.currency
+                betStats.max_win = 0
+                betStats.total_bets = 0
+                betStats.total_wins = 0
+                betStats.total_bonus_buys = 0
+                betStats.total_bonus_wins = 0
+            }
+            betStats.max_win = Math.max(spin.win, betStats.max_win)
+            if (spin.isBonus) {
+                betStats.total_bonus_buys += spin.bonusPrice
+                betStats.total_bonus_wins += spin.win
+            }
+            betStats.total_bets += ((spin.bonusPrice > 0) ? spin.bonusPrice : spin.bet).toFixed(2)
+            betStats.total_wins += spin.win
+            betStats.profit_loss = (betStats.total_wins / betStats.total_bets).toFixed(2)
+            
+            const transaction = db.transaction("game_bet_stats", "readwrite");
+            const objectStore = transaction.objectStore("game_bet_stats");
+            const updateRequest = objectStore.put(betStats);
+            updateRequest.onsuccess = () => {
+                for (let statsPage in statsPages) {
+                    chrome.tabs.sendMessage(parseInt(statsPage), { id: "updateBetRecord", betStats: betStats })
+                }
+            }
+        })
+    } else {
+        console.log("### Error: unknown game ###");
     }
 }
 
@@ -137,7 +276,7 @@ chrome.tabs.onRemoved.addListener(
 )
 
 chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
-    
+    console.log("### runtime.onMessage ### " + msg.id);
     if (msg.id === 'registerGame') {
         registerGame(sender.tab.id, msg.gameId)
         activeGameChanged(msg.gameId)
@@ -148,15 +287,24 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
             chrome.tabs.sendMessage(sender.tab.id, { id: "activeGameChanged", gameId: lastActiveGame })
         }
     } else if (msg.id === 'saveSpin') {
-        console.log("### saveSpin ###");
-        for (let statsPage in statsPages) {
-            chrome.tabs.sendMessage(parseInt(statsPage), { id: "updateRecord" })
-        }
+        saveSpin(msg.data)
+        //for (let statsPage in statsPages) {
+        //    chrome.tabs.sendMessage(parseInt(statsPage), { id: "updateRecord" })
+        //}
+    } else if (msg.id === 'getRecords') {
+        getAllRecords("game_stats").then((data) => {
+            chrome.tabs.sendMessage(sender.tab.id, { id: "reloadRecords", data: data })
+        })
+        getAllRecords("game_bet_stats").then((data) => {
+            chrome.tabs.sendMessage(sender.tab.id, { id: "reloadBetRecords", data: data })
+        })
     }
     sendResponse()
 });
 
-
+///////////////
+// TEMP
+//indexedDB.deleteDatabase('slotstatsDb');
 createDatabase();
 
 
