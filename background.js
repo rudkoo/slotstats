@@ -167,6 +167,12 @@ function activeGameChanged(activeGameId) {
     }
 }
 
+function recordResponse(record, spin) {
+    for (let statsPage in statsPages) {
+        chrome.tabs.sendMessage(parseInt(statsPage), { id: "logResponse", data: record, spin: spin })
+    }
+}
+
 function saveSpin(spin) {
     console.log("### saveSpin ### " + spin);
     if (spin.gameId != "unknown") {
@@ -177,10 +183,11 @@ function saveSpin(spin) {
                 gameStats.max_x = spin.isBonus ? spin.multiplier : 0
                 gameStats.avg_x = spin.isBonus ? spin.multiplier : 0
                 gameStats.bonus_count = spin.isBonus ? 1 : 0
-                gameStats.spin_count = spin.isBonus ? 0 : 1
+                gameStats.spin_count = (spin.bonusPrice > 0) ? 0 : 1
                 gameStats.spin_count_since_bonus = spin.isBonus ? 0 : 1
                 gameStats.bought_bonus_count = 0
                 gameStats.free_bonus_count = 0
+                gameStats.avg_spins_per_bonus = 0
                 if (spin.isBonus) {
                     if (spin.bonusPrice > 0) {
                         gameStats.bought_bonus_count = 1
@@ -196,12 +203,12 @@ function saveSpin(spin) {
                     if (spin.bonusPrice > 0) {
                         gameStats.bought_bonus_count += 1
                     } else {
+                        //gameStats.spin_count += 1
                         gameStats.free_bonus_count += 1
                         gameStats.spin_count_since_bonus = 0
                     }
                 } else {
                     if (!spin.continued) {
-                        console.log(" ### new spin ###")
                         gameStats.spin_count += 1
                         gameStats.spin_count_since_bonus += 1
                     }
@@ -234,9 +241,9 @@ function saveSpin(spin) {
                 betStats.total_bonus_buys += spin.bonusPrice
                 betStats.total_bonus_wins += spin.win
             }
-            betStats.total_bets += ((spin.bonusPrice > 0) ? spin.bonusPrice : spin.bet).toFixed(2)
+            betStats.total_bets += (spin.bonusPrice > 0) ? spin.bonusPrice : spin.bet
             betStats.total_wins += spin.win
-            betStats.profit_loss = (betStats.total_wins / betStats.total_bets).toFixed(2)
+            betStats.profit_loss = betStats.total_wins / betStats.total_bets
             
             const transaction = db.transaction("game_bet_stats", "readwrite");
             const objectStore = transaction.objectStore("game_bet_stats");
@@ -257,12 +264,21 @@ chrome.action.onClicked.addListener(function () {
 });
 
 chrome.tabs.onActivated.addListener(
-    function (activeInfo) {
-        getRecord("active_games", activeInfo.tabId).then((registeredGame) => {
-            if (registeredGame) {
-                activeGameChanged(registeredGame.gameId)
-            }
-        })
+    async function (activeInfo) {
+        
+        const tab = await chrome.tabs.get(activeInfo.tabId);
+        if (tab.url == ("chrome-extension://" + chrome.runtime.id + "/pages/index.html") && !statsPages[activeInfo.tabId]) {
+            statsPages[activeInfo.tabId] = 1
+        }
+        
+        let recordPromise = getRecord("active_games", activeInfo.tabId)
+        if (recordPromise) {
+            recordPromise.then((registeredGame) => {
+                if (registeredGame) {
+                    activeGameChanged(registeredGame.gameId)
+                }
+            })
+        }
     }
 )
 
@@ -298,6 +314,8 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
         getAllRecords("game_bet_stats").then((data) => {
             chrome.tabs.sendMessage(sender.tab.id, { id: "reloadBetRecords", data: data })
         })
+    } else if (msg.id === 'recordResponse') {
+        recordResponse(msg.data, msg.spin)
     }
     sendResponse()
 });

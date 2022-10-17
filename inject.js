@@ -68,6 +68,12 @@ function messageHandler(event) {
         console.log(event.data.spin)
         chrome.runtime.sendMessage({ id: "saveSpin", data: event.data.spin }, function() {});
     }
+    else if (event.data.msgId == "recordResponse") {
+        chrome.runtime.sendMessage({ id: "recordResponse", data: event.data.record, spin: event.data.spin }, function() {});
+    }
+    else if (event.data.msgId == "log") {
+        console.log("[Slotstats]:" + event.data.message)
+    }
     else {
         //chrome.storage.local.set({"slotstats": event.data.provider + event.data.timestamp }, function() {
         //    console.log('Value is set to ' + event.data.provider);
@@ -75,9 +81,9 @@ function messageHandler(event) {
         
     }
     
-    chrome.storage.local.get(['registerGame'], function(result) {
-        console.log('Value currently is ' + result.registerGame);
-    });
+    //chrome.storage.local.get(['registerGame'], function(result) {
+    //    console.log('Value currently is ' + result.registerGame);
+    //});
 }
 
 function interceptData() {

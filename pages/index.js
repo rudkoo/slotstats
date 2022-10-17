@@ -23,6 +23,8 @@ function messageHandler(msg, sender, sendResponse) {
         reloadRecords(msg.data)
     } else if (msg.id == "reloadBetRecords") {
         reloadBetRecords(msg.data)
+    } else if (msg.id == "logResponse") {
+        logResponse(msg.data, msg.spin)
     }
     sendResponse()
 }
@@ -90,6 +92,11 @@ function updateBetRecord(betStats) {
     }
 }
 
+function logResponse(data, spin) {
+    let content = "<p>\"" + data.body.replaceAll("@", "\\@") + "\" => { \"response\" => \"" + data.response + "\", \"expected\" => \"" + JSON.stringify(spin).replaceAll("\"", "\\\"") + "\" } </p>"
+    $("#responseLog").append(content)
+}
+
 window.addEventListener('load', (event) => {
     //document.getElementById("colorValue").addEventListener("input", function() { updateColor() })
     //chrome.runtime.sendMessage({ id: "registerStatsPage" }, function() {});
@@ -115,10 +122,10 @@ function format(d) {
         result += 
                 '<tr>' +
                     '<td>' + betStats[stats].currency + '</td>' +
-                    '<td>' + betStats[stats].max_win + '</td>' +
-                    '<td>' + betStats[stats].total_bets + '</td>' +
-                    '<td>' + betStats[stats].total_wins + '</td>' +
-                    '<td>' + betStats[stats].total_bonus_wins + '</td>' +
+                    '<td>' + betStats[stats].max_win.toFixed(2) + '</td>' +
+                    '<td>' + betStats[stats].total_bets.toFixed(2) + '</td>' +
+                    '<td>' + betStats[stats].total_wins.toFixed(2) + '</td>' +
+                    '<td>' + betStats[stats].total_bonus_wins.toFixed(2) + '</td>' +
                     '<td>' + betStats[stats].total_bonus_buys + '</td>' +
                     '<td>' + betStats[stats].profit_loss + '</td>' +
                 '</tr>'
@@ -147,7 +154,10 @@ $(document).ready(function () {
             { data: 'bought_bonus_count' },
             { data: 'free_bonus_count' },
             { data: 'spin_count' },
-            { data: 'spin_count_since_bonus' }
+            { data: 'spin_count_since_bonus' },
+            { data: 'spin_count', render: function(data, type, row) {
+                return (row.free_bonus_count > 0) ? data / row.free_bonus_count : data;
+            } }
         ],
         order: [[1, 'asc']],
     });
