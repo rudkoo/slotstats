@@ -1,4 +1,5 @@
-var table = null
+var overallTable = null
+var slotsTable = null
 var games = {}
 var gameBetStats = {}
 
@@ -19,43 +20,95 @@ function messageHandler(msg, sender, sendResponse) {
         updateRecord(msg.gameStats)
     } else if (msg.id == "updateBetRecord") {
         updateBetRecord(msg.betStats)
+        updateOverallTable()
     } else if (msg.id == "reloadRecords") {
         reloadRecords(msg.data)
     } else if (msg.id == "reloadBetRecords") {
         reloadBetRecords(msg.data)
-    } else if (msg.id == "logResponse") {
+        updateOverallTable()
+    } else if (msg.id == "settingsChanged") {
+        updateSettings(msg.settings)
+    } else if (msg.id == "recordResponse") {
         logResponse(msg.data, msg.spin)
     }
     sendResponse()
 }
 
-function updateColor() {
-    let value = parseInt(document.getElementById("colorValue").value)
-    let elements = document.getElementsByClassName("boxHeader")
-    let color = "#" + (65 + value).toString(16) + (71 + value).toString(16) + (118 + value).toString(16)
-    for (let element of elements) {
-        element.style.backgroundColor = color
+function hexToRgbA(hex){
+    var c;
+    if(/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)){
+        c= hex.substring(1).split('');
+        if(c.length== 3){
+            c= [c[0], c[0], c[1], c[1], c[2], c[2]];
+        }
+        c= '0x'+c.join('');
+        return [(c>>16)&255, (c>>8)&255, c&255];
     }
+    return [0, 0, 0]
+}
+
+function updateColor() {
+    let backgroundColorPicker = document.getElementById("backgroundColor")
+    let elements = document.getElementsByClassName("boxHeader")
+    let backgroundColor = backgroundColorPicker.value
+    let rgb = hexToRgbA(backgroundColor)
+    let secondaryColor = "#"
     
+    for (let i = 0; i < rgb.length; ++i) {
+        rgb[i] = Math.max(rgb[i] - 96, 0)
+        secondaryColor += ("00" + rgb[i].toString(16)).slice(-2)
+    }
+    for (let element of elements) {
+        element.style.backgroundColor = backgroundColor
+    }
     elements = document.getElementsByClassName("boxWithShadow")
     for (let element of elements) {
-        try {
-        let image = 'linear-gradient(to bottom right, ' + color + ', #0E1134)';
-        console.log(image)
+        let image = 'linear-gradient(to bottom right, ' + backgroundColor + ', ' + secondaryColor + ')';
         element.style.backgroundImage = image
-        } catch(e) {
-            console.log(e)
-        }
     }
+}
+
+function updateFontColor() {
+    let fontColorPicker = document.getElementById("fontColor")
+    let elements = document.getElementsByClassName("boxCell")
+    let fontColor = fontColorPicker.value
+    
+    for (let element of elements) {
+        element.style.color = fontColor
+    }
+}
+
+function updateSettings(settings) {
+    console.log(settings)
+    let fontColorPicker = document.getElementById("fontColor")
+    let backgroundColorPicker = document.getElementById("backgroundColor")
+    if (fontColorPicker && backgroundColorPicker) {
+        backgroundColorPicker.value = settings.backgroundColor
+        fontColorPicker.value = settings.fontColor
+        updateColor()
+        updateFontColor()
+    }
+}
+
+function saveSettings() {
+    let fontColorPicker = document.getElementById("fontColor")
+    let backgroundColorPicker = document.getElementById("backgroundColor")
+    let settings = { backgroundColor: backgroundColorPicker.value, fontColor: fontColorPicker.value }
+    console.log(settings)
+    chrome.runtime.sendMessage({ id: "saveSettings", settings: settings }, function() {});
+}
+
+function clearDatabase() {
+    chrome.runtime.sendMessage({ id: "clearDatabase" }, function() {});
 }
 
 function reloadRecords(data) {
     console.log(data)
-    table.clear()
-    table.rows.add(data).draw()
+    slotsTable.clear()
+    slotsTable.rows.add(data).draw()
     games = {}
-    for (let i = 0; i < table.data().count(); ++i) {
-        let rowData = table.row(i).data()
+    for (let i = 0; i < slotsTable.data().count(); ++i) {
+        let rowData = slotsTable.row(i).data()
         games[rowData.gameId] = i
     }
 }
@@ -65,17 +118,41 @@ function reloadBetRecords(data) {
     for (let record of data) {
         updateBetRecord(record)
     }
+    
+}
+
+function updateOverallTable() {
+    let overallData = {}
+    for (let gameId in gameBetStats) {
+        for (let currency in gameBetStats[gameId]) {
+            if (!overallData[currency]) {
+                overallData[currency] = { "total_bets": 0, "total_wins": 0, "profit_loss": 0  }
+            }
+            overallData[currency]["total_bets"] += gameBetStats[gameId][currency].total_bets
+            overallData[currency]["total_wins"] += gameBetStats[gameId][currency].total_wins
+            overallData[currency]["profit_loss"] = overallData[currency]["total_wins"] - overallData[currency]["total_bets"]
+        }
+    }
+    let overallDataArray = []
+    for (let currency in overallData) {
+        let item = overallData[currency]
+        item.currency = currency
+        overallDataArray.push(item)
+    }
+    overallTable.rows().clear()
+    overallTable.rows.add(overallDataArray)
+    overallTable.rows().draw()
 }
 
 function updateRecord(gameStats) {
     console.log(gameStats);
     if (gameStats.gameId in games) {
         let index = games[gameStats.gameId]
-        table.row(index).data(gameStats).draw()
+        slotsTable.row(index).data(gameStats).draw()
     } else {
-        table.row.add(gameStats).draw()
-        console.log(table.data().count())
-        games[gameStats.gameId] = table.data().count() - 1
+        slotsTable.row.add(gameStats).draw()
+        console.log(slotsTable.data().count())
+        games[gameStats.gameId] = slotsTable.data().count() - 1
         console.log(games[gameStats.gameId])
     }
 }
@@ -85,15 +162,18 @@ function updateBetRecord(betStats) {
     if (!(betStats.gameId in gameBetStats)) {
         gameBetStats[betStats.gameId] = {}
     }
+    
     gameBetStats[betStats.gameId][betStats.currency] = betStats
     if (betStats.gameId in games) {
         let index = games[betStats.gameId]
-        table.row(index).draw()
+        let row = slotsTable.row(index)
+        slotsTable.row(index).draw()
+        row.child(format(row.data()))
     }
 }
 
 function logResponse(data, spin) {
-    let content = "<p>\"" + data.body.replaceAll("@", "\\@") + "\" => { \"response\" => \"" + data.response + "\", \"expected\" => \"" + JSON.stringify(spin).replaceAll("\"", "\\\"") + "\" } </p>"
+    let content = "<p>{ \"key\" => \"" + data.body.replaceAll("@", "\\@") + "\", \"response\" => \"" + data.response.replaceAll("\"", "\\\"") + "\", \"expected\" => \"" + JSON.stringify(spin).replaceAll("\"", "\\\"") + "\" },</p>"
     $("#responseLog").append(content)
 }
 
@@ -136,10 +216,14 @@ function format(d) {
         '</table>'
     return result
 }
+
+function toFixed(data, type, row) {
+    return data.toFixed(2);
+}
  
 $(document).ready(function () {
     console.log("creating table")
-    table = $('#example').DataTable({
+    slotsTable = $('#slot_stats').DataTable({
         data: [],
         columns: [
             {
@@ -148,7 +232,7 @@ $(document).ready(function () {
                 data: null,
                 defaultContent: '',
             },
-            { data: 'gameId' },
+            { data: 'game_name' },
             { data: 'max_x' },
             { data: 'avg_x' },
             { data: 'bought_bonus_count' },
@@ -163,9 +247,9 @@ $(document).ready(function () {
     });
  
     // Add event listener for opening and closing details
-    $('#example tbody').on('click', 'td.dt-control', function () {
+    $('#slot_stats tbody').on('click', 'td.dt-control', function () {
         var tr = $(this).closest('tr');
-        var row = table.row(tr);
+        var row = slotsTable.row(tr);
  
         if (row.child.isShown()) {
             // This row is already open - close it
@@ -178,8 +262,37 @@ $(document).ready(function () {
         }
     });
     
-    document.getElementById("colorValue").addEventListener("input", function() { updateColor() })
+    overallTable = $('#overall_stats').DataTable({
+        data: [],
+        columns: [
+            { data: 'currency' },
+            { data: 'total_bets', render: toFixed },
+            { data: 'total_wins', render: toFixed },
+            { data: 'profit_loss', render: toFixed }
+        ],
+        order: [[1, 'asc']],
+        paging: false,
+        info: false,
+        searching: false
+    });
+    
+    let backgroundColorInput = document.getElementById("backgroundColor")
+    let fontColorInput = document.getElementById("fontColor")
+    let clearDbButton = document.getElementById("clearDb")
+    
+    if (backgroundColorInput) {
+        backgroundColorInput.addEventListener("input", function() { updateColor() })
+        backgroundColorInput.addEventListener("change", function() { saveSettings() })
+    }
+    if (fontColorInput) {
+        fontColorInput.addEventListener("input", function() { updateFontColor() })
+        fontColorInput.addEventListener("change", function() { saveSettings() })
+    }
+    if (clearDbButton) {
+        clearDbButton.addEventListener("click", function() { clearDatabase() })
+    }
     chrome.runtime.onMessage.addListener(messageHandler);
     chrome.runtime.sendMessage({ id: "registerStatsPage" }, function() {});
     chrome.runtime.sendMessage({ id: "getRecords" }, function() {});
+    chrome.runtime.sendMessage({ id: "getSettings" }, function() {});
 });

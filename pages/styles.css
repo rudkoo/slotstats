@@ -3,6 +3,11 @@
 	display: table;
 	width: 450px;
 }
+.greenbox{
+	padding: 50px;
+    background-color: green;
+    width: 260px;
+}
 .personalInfo{
 	display: table;
 	width: 250px;
@@ -66,4 +71,12 @@
 }
 .invisible{
     display: none;
+}
+.colorSettings{
+    width: 200px;
+}
+.colorSetting{
+    width: 100%;
+    display: flex;
+    flex-direction: row;
 }

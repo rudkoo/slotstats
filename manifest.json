@@ -22,7 +22,7 @@
     },
     
     "web_accessible_resources": [{
-        "resources": ["requests.js"],
+        "resources": ["requests.js", "slots.js"],
         "matches": ["<all_urls>"]
     }],
     
@@ -40,7 +40,8 @@
         "run_at": "document_start",
         "all_frames": true,
         "js": [
-            "inject.js"
+            "inject.js",
+            "slots.js"
         ]
     }],
     

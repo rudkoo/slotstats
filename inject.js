@@ -55,10 +55,6 @@
 //    return send.apply(this, arguments);
 //};
 
-//var tabId;
-//chrome.runtime.sendMessage('get-tabId', function(response) {
-//    tabId = response;
-//});
 
 function messageHandler(event) {
     if (event.data.msgId == "registerGame") {
@@ -74,26 +70,22 @@ function messageHandler(event) {
     else if (event.data.msgId == "log") {
         console.log("[Slotstats]:" + event.data.message)
     }
-    else {
-        //chrome.storage.local.set({"slotstats": event.data.provider + event.data.timestamp }, function() {
-        //    console.log('Value is set to ' + event.data.provider);
-        //});
-        
-    }
-    
-    //chrome.storage.local.get(['registerGame'], function(result) {
-    //    console.log('Value currently is ' + result.registerGame);
-    //});
 }
 
 function interceptData() {
-    var xhrOverrideScript = document.createElement('script');
-    //xhrOverrideScript.type = 'text/javascript';
-    xhrOverrideScript.src = chrome.runtime.getURL('requests.js');
-    xhrOverrideScript.onload = function() {
+    var requestsScript = document.createElement('script');
+    var slotNamesScript = document.createElement('script');
+    requestsScript.src = chrome.runtime.getURL('requests.js');
+    requestsScript.onload = function() {
         this.remove();
     };
-    document.head.prepend(xhrOverrideScript);
+    document.head.prepend(requestsScript);
+    
+    slotNamesScript.src = chrome.runtime.getURL('slots.js');
+    slotNamesScript.onload = function() {
+        this.remove();
+    };
+    document.head.prepend(slotNamesScript);
 }
 
 function checkForDOM() {
@@ -107,5 +99,4 @@ function checkForDOM() {
     }
 }
 
-//interceptData()
 requestIdleCallback(checkForDOM);

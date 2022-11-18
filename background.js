@@ -33,10 +33,14 @@ function createDatabase() {
         db = event.target.result;
         let version =  parseInt(db.version);
         if (version == 1) {
+            let objectStoreSettings = db.createObjectStore('settings', { keyPath: 'id' });
             let objectStoreGameStats = db.createObjectStore('game_stats', { keyPath: 'gameId' });
             let objectStoreBetStats = db.createObjectStore('game_bet_stats', { keyPath: [ 'gameId', 'currency' ] });
             let objectStoreActiveGames = db.createObjectStore('active_games', { keyPath: 'tabId' });
         
+            objectStoreSettings.transaction.oncomplete = function (event) {
+                console.log("objectStoreSettings Created.");
+            }
             objectStoreGameStats.transaction.oncomplete = function (event) {
                 console.log("objectStoreGameStats Created.");
             }
@@ -150,6 +154,32 @@ function clearDatabase() {
     clearObjectStore("active_games")
 }
 
+function getSettings() {
+    getRecord('settings', 0).then((settings) => {
+        if (!settings) {
+            settings = {}
+            settings.backgroundColor = "#212766"
+            settings.fontColor = "#FFFFFF"
+        } 
+        settingsChanged(settings)
+    })
+}
+
+function setSettings(settings) {
+    settings.id = 0
+    const transaction = db.transaction("settings", "readwrite");
+    const objectStore = transaction.objectStore("settings");
+    const updateRequest = objectStore.put(settings);
+    console.log("setSettings")
+    updateRequest.onsuccess = () => {
+        settingsChanged(settings)
+    }
+}
+
+function settingsChanged(settings) {
+    chrome.runtime.sendMessage({ id: "settingsChanged", settings: settings })
+}
+
 function registerGame(tabId, gameId) {
     if (db) {
         const transaction = db.transaction("active_games", "readwrite");
@@ -162,16 +192,17 @@ function registerGame(tabId, gameId) {
 function activeGameChanged(activeGameId) {
     //console.log('### active game changed ### : ' + activeGameId);
     lastActiveGame = activeGameId
-    for (let statsPage in statsPages) {
-        chrome.tabs.sendMessage(parseInt(statsPage), { id: "activeGameChanged", gameId: activeGameId })
-    }
+    //for (let statsPage in statsPages) {
+    //    chrome.tabs.sendMessage(parseInt(statsPage), { id: "activeGameChanged", gameId: activeGameId })
+    //}
+    chrome.runtime.sendMessage({ id: "activeGameChanged", gameId: activeGameId })
 }
 
-function recordResponse(record, spin) {
-    for (let statsPage in statsPages) {
-        chrome.tabs.sendMessage(parseInt(statsPage), { id: "logResponse", data: record, spin: spin })
-    }
-}
+//function recordResponse(record, spin) {
+//    for (let statsPage in statsPages) {
+//        chrome.tabs.sendMessage(parseInt(statsPage), { id: "logResponse", data: record, spin: spin })
+//    }
+//}
 
 function saveSpin(spin) {
     console.log("### saveSpin ### " + spin);
@@ -203,7 +234,7 @@ function saveSpin(spin) {
                     if (spin.bonusPrice > 0) {
                         gameStats.bought_bonus_count += 1
                     } else {
-                        //gameStats.spin_count += 1
+                        gameStats.spin_count += 1
                         gameStats.free_bonus_count += 1
                         gameStats.spin_count_since_bonus = 0
                     }
@@ -214,14 +245,17 @@ function saveSpin(spin) {
                     }
                 }
             }
+            console.log(gameStats.spin_count)
             gameStats.last_played = spin.timestamp
+            gameStats.game_name = spin.gameName
             const transaction = db.transaction("game_stats", "readwrite");
             const objectStore = transaction.objectStore("game_stats");
             const updateRequest = objectStore.put(gameStats);
             updateRequest.onsuccess = () => {
-                for (let statsPage in statsPages) {
-                    chrome.tabs.sendMessage(parseInt(statsPage), { id: "updateRecord", gameStats: gameStats })
-                }
+                //for (let statsPage in statsPages) {
+                //    chrome.tabs.sendMessage(parseInt(statsPage), { id: "updateRecord", gameStats: gameStats })
+                //}
+                chrome.runtime.sendMessage({ id: "updateRecord", gameStats: gameStats })
             }
         })
         
@@ -249,9 +283,10 @@ function saveSpin(spin) {
             const objectStore = transaction.objectStore("game_bet_stats");
             const updateRequest = objectStore.put(betStats);
             updateRequest.onsuccess = () => {
-                for (let statsPage in statsPages) {
-                    chrome.tabs.sendMessage(parseInt(statsPage), { id: "updateBetRecord", betStats: betStats })
-                }
+                //for (let statsPage in statsPages) {
+                //    chrome.tabs.sendMessage(parseInt(statsPage), { id: "updateBetRecord", betStats: betStats })
+                //}
+                chrome.runtime.sendMessage({ id: "updateBetRecord", betStats: betStats })
             }
         })
     } else {
@@ -266,10 +301,10 @@ chrome.action.onClicked.addListener(function () {
 chrome.tabs.onActivated.addListener(
     async function (activeInfo) {
         
-        const tab = await chrome.tabs.get(activeInfo.tabId);
-        if (tab.url == ("chrome-extension://" + chrome.runtime.id + "/pages/index.html") && !statsPages[activeInfo.tabId]) {
-            statsPages[activeInfo.tabId] = 1
-        }
+        //const tab = await chrome.tabs.get(activeInfo.tabId);
+        //if (tab.url == ("chrome-extension://" + chrome.runtime.id + "/pages/index.html") && !statsPages[activeInfo.tabId]) {
+        //    statsPages[activeInfo.tabId] = 1
+        //}
         
         let recordPromise = getRecord("active_games", activeInfo.tabId)
         if (recordPromise) {
@@ -300,7 +335,8 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
         //statsPages.push(sender.tab.id)
         statsPages[sender.tab.id] = 1
         if (lastActiveGame) {
-            chrome.tabs.sendMessage(sender.tab.id, { id: "activeGameChanged", gameId: lastActiveGame })
+            //chrome.tabs.sendMessage(sender.tab.id, { id: "activeGameChanged", gameId: lastActiveGame })
+            chrome.runtime.sendMessage({ id: "activeGameChanged", gameId: lastActiveGame })
         }
     } else if (msg.id === 'saveSpin') {
         saveSpin(msg.data)
@@ -314,8 +350,14 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
         getAllRecords("game_bet_stats").then((data) => {
             chrome.tabs.sendMessage(sender.tab.id, { id: "reloadBetRecords", data: data })
         })
-    } else if (msg.id === 'recordResponse') {
-        recordResponse(msg.data, msg.spin)
+    //} else if (msg.id === 'recordResponse') {
+        //recordResponse(msg.data, msg.spin)
+    } else if (msg.id === 'clearDatabase') {
+        clearDatabase()
+    } else if (msg.id === 'getSettings') {
+        getSettings()
+    } else if (msg.id === 'saveSettings') {
+        setSettings(msg.settings)
     }
     sendResponse()
 });
