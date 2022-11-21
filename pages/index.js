@@ -1,7 +1,10 @@
 var overallTable = null
 var slotsTable = null
+var funStatsTable = null
 var games = {}
 var gameBetStats = {}
+var funGames = {}
+var funGameBetStats = {}
 
 chrome.storage.local.onChanged.addListener(function (changes, namespace) {
     for (let [key, { oldValue, newValue }] of Object.entries(changes)) {
@@ -17,20 +20,29 @@ function messageHandler(msg, sender, sendResponse) {
     if (msg.id == "activeGameChanged") {
         $("#name").text(msg.gameId)
     } else if (msg.id == "updateRecord") {
-        updateRecord(msg.gameStats)
+        updateRecord(msg.gameStats, msg.isFunGame)
     } else if (msg.id == "updateBetRecord") {
-        updateBetRecord(msg.betStats)
+        updateBetRecord(msg.betStats, msg.isFunGame)
         updateOverallTable()
     } else if (msg.id == "reloadRecords") {
-        reloadRecords(msg.data)
+        reloadRecords(msg.data, msg.funData)
     } else if (msg.id == "reloadBetRecords") {
-        reloadBetRecords(msg.data)
+        reloadBetRecords(msg.data, msg.funData)
         updateOverallTable()
     } else if (msg.id == "settingsChanged") {
         updateSettings(msg.settings)
+    } else if (msg.id == "reloadSessions") {
+        reloadSessions(msg.data)
+    } else if (msg.id == "reloadSessionRecords") {
+        reloadSessionRecords(msg.data, msg.funData)
+    } else if (msg.id == "reloadSessionBetRecords") {
+        reloadSessionBetRecords(msg.data, msg.funData)
+    } else if (msg.id == "newSessionCreated") {
+        newSessionCreated(msg.data)
     } else if (msg.id == "recordResponse") {
         logResponse(msg.data, msg.spin)
     }
+    
     sendResponse()
 }
 
@@ -102,21 +114,36 @@ function clearDatabase() {
     chrome.runtime.sendMessage({ id: "clearDatabase" }, function() {});
 }
 
-function reloadRecords(data) {
-    console.log(data)
+function deleteDatabase() {
+    chrome.runtime.sendMessage({ id: "deleteDatabase" }, function() {});
+}
+
+function reloadRecords(data, funData) {
     slotsTable.clear()
     slotsTable.rows.add(data).draw()
+    funStatsTable.clear()
+    funStatsTable.rows.add(funData).draw()
+    
     games = {}
+    funGames = {}
     for (let i = 0; i < slotsTable.data().count(); ++i) {
         let rowData = slotsTable.row(i).data()
         games[rowData.gameId] = i
     }
+    for (let i = 0; i < funStatsTable.data().count(); ++i) {
+        let rowData = funStatsTable.row(i).data()
+        funGames[rowData.gameId] = i
+    }
 }
 
-function reloadBetRecords(data) {
+function reloadBetRecords(data, funData) {
     gameBetStats = {}
+    funGameBetStats = {}
     for (let record of data) {
-        updateBetRecord(record)
+        updateBetRecord(record, false)
+    }
+    for (let record of funData) {
+        updateBetRecord(record, true)
     }
     
 }
@@ -133,6 +160,17 @@ function updateOverallTable() {
             overallData[currency]["profit_loss"] = overallData[currency]["total_wins"] - overallData[currency]["total_bets"]
         }
     }
+    for (let gameId in funGameBetStats) {
+        for (let currency in funGameBetStats[gameId]) {
+            let funCurrency = "Fun_" + currency
+            if (!overallData[funCurrency]) {
+                overallData[funCurrency] = { "total_bets": 0, "total_wins": 0, "profit_loss": 0  }
+            }
+            overallData[funCurrency]["total_bets"] += funGameBetStats[gameId][currency].total_bets
+            overallData[funCurrency]["total_wins"] += funGameBetStats[gameId][currency].total_wins
+            overallData[funCurrency]["profit_loss"] = overallData[funCurrency]["total_wins"] - overallData[funCurrency]["total_bets"]
+        }
+    }
     let overallDataArray = []
     for (let currency in overallData) {
         let item = overallData[currency]
@@ -144,32 +182,64 @@ function updateOverallTable() {
     overallTable.rows().draw()
 }
 
-function updateRecord(gameStats) {
-    console.log(gameStats);
-    if (gameStats.gameId in games) {
-        let index = games[gameStats.gameId]
-        slotsTable.row(index).data(gameStats).draw()
+function updateRecord(gameStats, isFunGame) {
+    
+    let table = isFunGame ? funStatsTable : slotsTable
+    let gameStatsData = isFunGame ? funGames : games
+    if (gameStats.gameId in gameStatsData) {
+        let index = gameStatsData[gameStats.gameId]
+        table.row(index).data(gameStats).draw()
     } else {
-        slotsTable.row.add(gameStats).draw()
-        console.log(slotsTable.data().count())
-        games[gameStats.gameId] = slotsTable.data().count() - 1
-        console.log(games[gameStats.gameId])
+        table.row.add(gameStats).draw()
+        gameStatsData[gameStats.gameId] = table.data().count() - 1
     }
 }
 
-function updateBetRecord(betStats) {
-    console.log(betStats);
-    if (!(betStats.gameId in gameBetStats)) {
-        gameBetStats[betStats.gameId] = {}
+function updateBetRecord(betStats, isFunGame) {
+    
+    let table = isFunGame ? funStatsTable : slotsTable
+    let gameStatsData = isFunGame ? funGames : games
+    let betStatsData = isFunGame ? funGameBetStats : gameBetStats
+    
+    if (!(betStats.gameId in betStatsData)) {
+        betStatsData[betStats.gameId] = {}
     }
     
-    gameBetStats[betStats.gameId][betStats.currency] = betStats
-    if (betStats.gameId in games) {
-        let index = games[betStats.gameId]
-        let row = slotsTable.row(index)
-        slotsTable.row(index).draw()
+    betStatsData[betStats.gameId][betStats.currency] = betStats
+    if (betStats.gameId in gameStatsData) {
+        let index = gameStatsData[betStats.gameId]
+        let row = table.row(index)
+        table.row(index).draw()
         row.child(format(row.data()))
     }
+}
+
+function addSessionToList(sessionData) {
+    let text = sessionData.start + " - "
+    if (sessionData.end) {
+        text += sessionData.end
+    }
+    $('#currentSession').append(new Option(text, sessionData.sessionId))
+}
+
+function reloadSessions(sessionData) {
+    for (let item of sessionData) {
+        addSessionToList(item)
+    }
+}
+ 
+function reloadSessionRecords(statsData, funStatsData) {
+}
+
+function reloadSessionBetRecords(statsData, funStatsData) {
+}
+
+function createNewSession() {
+    chrome.runtime.sendMessage({ id: "createNewSession" }, function() {});
+}
+
+function newSessionCreated(newSession) {
+    addSessionToList(newSession)
 }
 
 function logResponse(data, spin) {
@@ -246,17 +316,50 @@ $(document).ready(function () {
         order: [[1, 'asc']],
     });
  
-    // Add event listener for opening and closing details
     $('#slot_stats tbody').on('click', 'td.dt-control', function () {
         var tr = $(this).closest('tr');
         var row = slotsTable.row(tr);
  
         if (row.child.isShown()) {
-            // This row is already open - close it
             row.child.hide();
             tr.removeClass('shown');
         } else {
-            // Open this row
+            row.child(format(row.data())).show();
+            tr.addClass('shown');
+        }
+    });
+    
+    funStatsTable = $('#fun_stats').DataTable({
+        data: [],
+        columns: [
+            {
+                className: 'dt-control',
+                orderable: false,
+                data: null,
+                defaultContent: '',
+            },
+            { data: 'game_name' },
+            { data: 'max_x' },
+            { data: 'avg_x' },
+            { data: 'bought_bonus_count' },
+            { data: 'free_bonus_count' },
+            { data: 'spin_count' },
+            { data: 'spin_count_since_bonus' },
+            { data: 'spin_count', render: function(data, type, row) {
+                return (row.free_bonus_count > 0) ? data / row.free_bonus_count : data;
+            } }
+        ],
+        order: [[1, 'asc']],
+    });
+    
+    $('#fun_stats tbody').on('click', 'td.dt-control', function () {
+        var tr = $(this).closest('tr');
+        var row = funStatsTable.row(tr);
+ 
+        if (row.child.isShown()) {
+            row.child.hide();
+            tr.removeClass('shown');
+        } else {
             row.child(format(row.data())).show();
             tr.addClass('shown');
         }
@@ -279,6 +382,8 @@ $(document).ready(function () {
     let backgroundColorInput = document.getElementById("backgroundColor")
     let fontColorInput = document.getElementById("fontColor")
     let clearDbButton = document.getElementById("clearDb")
+    let deleteDbButton = document.getElementById("deleteDb")
+    let createSession = document.getElementById("createSession")
     
     if (backgroundColorInput) {
         backgroundColorInput.addEventListener("input", function() { updateColor() })
@@ -290,6 +395,12 @@ $(document).ready(function () {
     }
     if (clearDbButton) {
         clearDbButton.addEventListener("click", function() { clearDatabase() })
+    }
+    if (deleteDbButton) {
+        deleteDbButton.addEventListener("click", function() { deleteDatabase() })
+    }
+    if (createSession) {
+        createSession.addEventListener("click", function() { createNewSession() })
     }
     chrome.runtime.onMessage.addListener(messageHandler);
     chrome.runtime.sendMessage({ id: "registerStatsPage" }, function() {});

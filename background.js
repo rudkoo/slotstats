@@ -36,6 +36,16 @@ function createDatabase() {
             let objectStoreSettings = db.createObjectStore('settings', { keyPath: 'id' });
             let objectStoreGameStats = db.createObjectStore('game_stats', { keyPath: 'gameId' });
             let objectStoreBetStats = db.createObjectStore('game_bet_stats', { keyPath: [ 'gameId', 'currency' ] });
+            let objectStoreFunGameStats = db.createObjectStore('fun_game_stats', { keyPath: 'gameId' });
+            let objectStoreFunBetStats = db.createObjectStore('fun_game_bet_stats', { keyPath: [ 'gameId', 'currency' ] });
+            
+            let objectStoreSessions = db.createObjectStore('sessions', { keyPath: 'sessionId' });
+            let objectStoreSessionGameStats = db.createObjectStore('session_game_stats', { keyPath: ['sessionId', 'gameId'] });
+            let objectStoreSessionBetStats = db.createObjectStore('session_game_bet_stats', { keyPath: [ 'sessionId', 'gameId', 'currency' ] });
+            let objectStoreSessionFunGameStats = db.createObjectStore('session_fun_game_stats', { keyPath: [ 'sessionId', 'gameId' ] });
+            let objectStoreSessionFunBetStats = db.createObjectStore('session_fun_game_bet_stats', { keyPath: [ 'sessionId', 'gameId', 'currency' ] });
+            
+            let objectStoreSessionInfo = db.createObjectStore('session_info', { keyPath: 'id' });
             let objectStoreActiveGames = db.createObjectStore('active_games', { keyPath: 'tabId' });
         
             objectStoreSettings.transaction.oncomplete = function (event) {
@@ -46,6 +56,27 @@ function createDatabase() {
             }
             objectStoreBetStats.transaction.oncomplete = function (event) {
                 console.log("objectStoreBetStats Created.");
+            }
+            objectStoreFunGameStats.transaction.oncomplete = function (event) {
+                console.log("objectStoreFunGameStats Created.");
+            }
+            objectStoreFunBetStats.transaction.oncomplete = function (event) {
+                console.log("objectStoreFunBetStats Created.");
+            }
+            objectStoreSessions.transaction.oncomplete = function (event) {
+                console.log("objectStoreSessions Created.");
+            }
+            objectStoreSessionGameStats.transaction.oncomplete = function (event) {
+                console.log("objectStoreSessionGameStats Created.");
+            }
+            objectStoreSessionBetStats.transaction.oncomplete = function (event) {
+                console.log("objectStoreSessionBetStats Created.");
+            }
+            objectStoreSessionFunGameStats.transaction.oncomplete = function (event) {
+                console.log("objectStoreSessionFunGameStats Created.");
+            }
+            objectStoreSessionFunBetStats.transaction.oncomplete = function (event) {
+                console.log("objectStoreSessionFunBetStats Created.");
             }
             objectStoreActiveGames.transaction.oncomplete = function (event) {
                 console.log("objectStoreActiveGames Created.");
@@ -149,8 +180,16 @@ function clearObjectStore(objectStoreId) {
 
 function clearDatabase() {
     console.log("Clearing database")
+    clearObjectStore("settings")
     clearObjectStore("game_stats")
     clearObjectStore("game_bet_stats")
+    clearObjectStore("fun_game_stats")
+    clearObjectStore("fun_game_bet_stats")
+    clearObjectStore("sessions")
+    clearObjectStore("session_game_stats")
+    clearObjectStore("session_game_bet_stats")
+    clearObjectStore("session_fun_game_stats")
+    clearObjectStore("session_fun_game_bet_stats")
     clearObjectStore("active_games")
 }
 
@@ -160,6 +199,8 @@ function getSettings() {
             settings = {}
             settings.backgroundColor = "#212766"
             settings.fontColor = "#FFFFFF"
+            settings.activeSessionId = null
+            settings.nextSessionId = 1
         } 
         settingsChanged(settings)
     })
@@ -178,6 +219,54 @@ function setSettings(settings) {
 
 function settingsChanged(settings) {
     chrome.runtime.sendMessage({ id: "settingsChanged", settings: settings })
+}
+
+function getSessionRecords() {
+    getAllRecords("sessions").then((sessionsData) => {
+        
+        chrome.runtime.sendMessage({ id: "reloadSessions", data: sessionsData })
+        
+        getAllRecords("session_game_stats").then((gameStatsData) => {
+            getAllRecords("session_fun_game_stats").then((funStatsData) => {
+                chrome.runtime.sendMessage({ id: "reloadSessionRecords", data: gameStatsData, funData: funStatsData })
+            })
+        })
+        getAllRecords("session_game_bet_stats").then((gameBetData) => {
+            getAllRecords("session_fun_game_bet_stats").then((funBetData) => {
+                chrome.runtime.sendMessage({ id: "reloadSessionBetRecords", data: gameBetData, funData: funBetData })
+            })
+        })
+    })
+}
+
+function createNewSession() {
+    getRecord('session_info', 0).then((sessionInfo) => {
+        if (!sessionInfo) {
+            sessionInfo = {}
+            sessionInfo.id = 0
+            sessionInfo.activeSessionId = null
+            sessionInfo.nextSessionId = 1
+        }
+        sessionInfo.activeSessionId = sessionInfo.nextSessionId
+        sessionInfo.nextSessionId += 1
+        const transaction = db.transaction("session_info", "readwrite");
+        const objectStore = transaction.objectStore("session_info");
+        const updateRequest = objectStore.put(sessionInfo);
+        updateRequest.onsuccess = () => {
+            let now = new Date()
+            let sessionRecord = { sessionId: sessionInfo.activeSessionId, start: now.toString() }
+            const sessionTransaction = db.transaction("sessions", "readwrite");
+            const sessionObjectStore = sessionTransaction.objectStore("sessions");
+            const sessionUpdateRequest = sessionObjectStore.put(sessionRecord);
+            sessionUpdateRequest.onsuccess = () => {
+                chrome.runtime.sendMessage({ id: "newSessionCreated", data: sessionRecord })
+            }
+        }
+    })
+}
+
+function endCurrentSession() {
+    // TODO - create new session
 }
 
 function registerGame(tabId, gameId) {
@@ -204,10 +293,15 @@ function activeGameChanged(activeGameId) {
 //    }
 //}
 
-function saveSpin(spin) {
+function saveSpinToTable(spin, statsTable, betStatsTable, sessionId = null) {
     console.log("### saveSpin ### " + spin);
     if (spin.gameId != "unknown") {
-        getRecord('game_stats', spin.gameId).then((gameStats) => {
+        
+        let gameStatsKeys = spin.gameId
+        if (sessionId) {
+            gameStatsKeys = [sessionId, spin.gameId]
+        }
+        getRecord(statsTable, gameStatsKeys).then((gameStats) => {
             if (!gameStats) {
                 gameStats = {}
                 gameStats.gameId = spin.gameId
@@ -248,18 +342,22 @@ function saveSpin(spin) {
             console.log(gameStats.spin_count)
             gameStats.last_played = spin.timestamp
             gameStats.game_name = spin.gameName
-            const transaction = db.transaction("game_stats", "readwrite");
-            const objectStore = transaction.objectStore("game_stats");
+            const transaction = db.transaction(statsTable, "readwrite");
+            const objectStore = transaction.objectStore(statsTable);
             const updateRequest = objectStore.put(gameStats);
             updateRequest.onsuccess = () => {
                 //for (let statsPage in statsPages) {
                 //    chrome.tabs.sendMessage(parseInt(statsPage), { id: "updateRecord", gameStats: gameStats })
                 //}
-                chrome.runtime.sendMessage({ id: "updateRecord", gameStats: gameStats })
+                chrome.runtime.sendMessage({ id: "updateRecord", isFunGame: spin.isFunGame, gameStats: gameStats, sessionId: sessionId })
             }
         })
         
-        getRecord('game_bet_stats', [spin.gameId, spin.currency]).then((betStats) => {
+        let betStatsKeys = [spin.gameId, spin.currency]
+        if (sessionId) {
+            betStatsKeys = [sessionId, spin.gameId, spin.currency]
+        }
+        getRecord(betStatsTable, betStatsKeys).then((betStats) => {
             if (!betStats) {
                 betStats = {}
                 betStats.gameId = spin.gameId
@@ -269,6 +367,9 @@ function saveSpin(spin) {
                 betStats.total_wins = 0
                 betStats.total_bonus_buys = 0
                 betStats.total_bonus_wins = 0
+                if (sessionId) {
+                    betStats.sessionId = sessionId
+                }
             }
             betStats.max_win = Math.max(spin.win, betStats.max_win)
             if (spin.isBonus) {
@@ -279,19 +380,36 @@ function saveSpin(spin) {
             betStats.total_wins += spin.win
             betStats.profit_loss = betStats.total_wins / betStats.total_bets
             
-            const transaction = db.transaction("game_bet_stats", "readwrite");
-            const objectStore = transaction.objectStore("game_bet_stats");
+            const transaction = db.transaction(betStatsTable, "readwrite");
+            const objectStore = transaction.objectStore(betStatsTable);
             const updateRequest = objectStore.put(betStats);
             updateRequest.onsuccess = () => {
                 //for (let statsPage in statsPages) {
                 //    chrome.tabs.sendMessage(parseInt(statsPage), { id: "updateBetRecord", betStats: betStats })
                 //}
-                chrome.runtime.sendMessage({ id: "updateBetRecord", betStats: betStats })
+                chrome.runtime.sendMessage({ id: "updateBetRecord", isFunGame: spin.isFunGame, betStats: betStats, sessionId: sessionId })
             }
         })
     } else {
         console.log("### Error: unknown game ###");
     }
+}
+
+function saveSpin(spin) {
+    if (spin.isFunGame) {
+        saveSpinToTable(spin, "fun_game_stats", "fun_game_bet_stats")
+    } else {
+        saveSpinToTable(spin, "game_stats", "game_bet_stats")
+    }
+    getRecord('settings', 0).then((settings) => {
+        if (settings && settings.activeSessionId) {
+            if (spin.isFunGame) {
+                saveSpinToTable(spin, "session_fun_game_stats", "session_fun_game_bet_stats", settings.activeSessionId)
+            } else {
+                saveSpinToTable(spin, "session_game_stats", "session_game_bet_stats", settings.activeSessionId)
+            }
+        } 
+    })
 }
 
 chrome.action.onClicked.addListener(function () {
@@ -345,20 +463,34 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
         //}
     } else if (msg.id === 'getRecords') {
         getAllRecords("game_stats").then((data) => {
-            chrome.tabs.sendMessage(sender.tab.id, { id: "reloadRecords", data: data })
+            getAllRecords("fun_game_stats").then((funData) => {
+                chrome.runtime.sendMessage({ id: "reloadRecords", data: data, funData: funData })
+            })
         })
         getAllRecords("game_bet_stats").then((data) => {
-            chrome.tabs.sendMessage(sender.tab.id, { id: "reloadBetRecords", data: data })
+            getAllRecords("fun_game_bet_stats").then((funData) => {
+                chrome.runtime.sendMessage({ id: "reloadBetRecords", data: data, funData: funData })
+            })
         })
     //} else if (msg.id === 'recordResponse') {
         //recordResponse(msg.data, msg.spin)
     } else if (msg.id === 'clearDatabase') {
         clearDatabase()
+    } else if (msg.id === 'deleteDatabase') {
+        console.log("Deleting database")
+        indexedDB.deleteDatabase('slotstatsDb');
     } else if (msg.id === 'getSettings') {
         getSettings()
     } else if (msg.id === 'saveSettings') {
         setSettings(msg.settings)
+    } else if (msg.id === 'getSessionRecords') {
+        getSessionRecords()
+    } else if (msg.id === 'createNewSession') {
+        createNewSession()
+    } else if (msg.id === 'endCurrentSession') {
+        endCurrentSession()
     }
+    
     sendResponse()
 });
 

@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html ng-app="" ng-csp="">
+<head>
+    <link rel="stylesheet" href="../lib/datatables.min.css">
+    <script src="../lib/jquery.min.js"></script>
+    <script src="../lib/datatables.min.js"></script>
+    <script src="index.js"></script>
+    <link rel="stylesheet" href="styles.css">
+    <title>A Meaningful Page Title</title>
+</head>
+<body>
+    <div>
+        <div>Current session:</div>
+        <select id="currentSession"></select>
+        <button id="createSession" type="button">Create new session</button>
+    </div>
+    <fieldset>
+        <legend>Session statistics</legend>
+        
+        <table id="overall_stats" class="display" style="width:100%">
+            <thead>
+                <tr>
+                    <th>Currency</th>
+                    <th>Total bets</th>
+                    <th>Total win</th>
+                    <th>Profit / Loss</th>
+                </tr>
+            </thead>
+        </table>
+    </fieldset>
+    
+    <fieldset>
+        <legend>Real games in session</legend>
+        <table id="slot_stats" class="display" style="width:100%">
+            <thead>
+                <tr>
+                    <th></th>
+                    <th>Game</th>
+                    <th>Max X</th>
+                    <th>Average X</th>
+                    <th>Bought bonuses</th>
+                    <th>Free bonuses</th>
+                    <th>Number of spins</th>
+                    <th>Spins since last free bonus</th>
+                    <th>Average spins / bonus</th>
+                </tr>
+            </thead>
+            <tfoot>
+                <tr>
+                    <th></th>
+                    <th>Game</th>
+                    <th>Max X</th>
+                    <th>Average X</th>
+                    <th>Bought bonuses</th>
+                    <th>Free bonuses</th>
+                    <th>Number of spins</th>
+                    <th>Spins since last free bonus</th>
+                    <th>Average spins / bonus</th>
+                </tr>
+            </tfoot>
+        </table>
+    </fieldset>
+    
+    <fieldset>
+        <legend>Fun games in session</legend>
+        <table id="fun_stats" class="display" style="width:100%">
+            <thead>
+                <tr>
+                    <th></th>
+                    <th>Game</th>
+                    <th>Max X</th>
+                    <th>Average X</th>
+                    <th>Bought bonuses</th>
+                    <th>Free bonuses</th>
+                    <th>Number of spins</th>
+                    <th>Spins since last free bonus</th>
+                    <th>Average spins / bonus</th>
+                </tr>
+            </thead>
+            <tfoot>
+                <tr>
+                    <th></th>
+                    <th>Game</th>
+                    <th>Max X</th>
+                    <th>Average X</th>
+                    <th>Bought bonuses</th>
+                    <th>Free bonuses</th>
+                    <th>Number of spins</th>
+                    <th>Spins since last free bonus</th>
+                    <th>Average spins / bonus</th>
+                </tr>
+            </tfoot>
+        </table>
+    </fieldset>
+</body>
+</html> 
