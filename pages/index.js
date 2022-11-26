@@ -39,6 +39,8 @@ function messageHandler(msg, sender, sendResponse) {
         reloadSessionBetRecords(msg.data, msg.funData)
     } else if (msg.id == "newSessionCreated") {
         newSessionCreated(msg.data)
+    } else if (msg.id == "updateSession") {
+        updateSession(msg.data)
     } else if (msg.id == "recordResponse") {
         logResponse(msg.data, msg.spin)
     }
@@ -210,16 +212,24 @@ function updateBetRecord(betStats, isFunGame) {
         let index = gameStatsData[betStats.gameId]
         let row = table.row(index)
         table.row(index).draw()
-        row.child(format(row.data()))
+        row.child(format(row.data(), betStatsData[row.data().gameId]))
     }
 }
 
-function addSessionToList(sessionData) {
-    let text = sessionData.start + " - "
+function sessionLabelFormat(sessionData) {
+    let text = "Session " + sessionData.sessionId + ": (" + sessionData.start + " - "
     if (sessionData.end) {
         text += sessionData.end
     }
-    $('#currentSession').append(new Option(text, sessionData.sessionId))
+    text += ")"
+    return text
+}
+
+function addSessionToList(sessionData) {
+    if ($('#currentSession')) {
+        let text = sessionLabelFormat(sessionData)
+        $('#currentSession').append(new Option(text, sessionData.sessionId))
+    }
 }
 
 function reloadSessions(sessionData) {
@@ -242,6 +252,19 @@ function newSessionCreated(newSession) {
     addSessionToList(newSession)
 }
 
+function updateSession(updatedSession) {
+    let sessionSelector = $('#currentSession')
+    if (sessionSelector) {
+        let options = sessionSelector.children()
+        for (let i = options.length-1; i >= 0; --i) {
+            if (options[i].value == updatedSession.sessionId) {
+                options[i].text = sessionLabelFormat(updatedSession)
+                break
+            }
+        }
+    }
+}
+
 function logResponse(data, spin) {
     let content = "<p>{ \"key\" => \"" + data.body.replaceAll("@", "\\@") + "\", \"response\" => \"" + data.response.replaceAll("\"", "\\\"") + "\", \"expected\" => \"" + JSON.stringify(spin).replaceAll("\"", "\\\"") + "\" },</p>"
     $("#responseLog").append(content)
@@ -252,8 +275,7 @@ window.addEventListener('load', (event) => {
     //chrome.runtime.sendMessage({ id: "registerStatsPage" }, function() {});
 });
 
-function format(d) {
-    let betStats = gameBetStats[d.gameId]
+function format(rowData, betStats) {
     let result = 
         '<table cellpadding="5" cellspacing="0" border="0" style="padding-left:50px;">' +
             '<thead>' +
@@ -313,6 +335,8 @@ $(document).ready(function () {
                 return (row.free_bonus_count > 0) ? data / row.free_bonus_count : data;
             } }
         ],
+        paging: false,
+        info: false,
         order: [[1, 'asc']],
     });
  
@@ -324,7 +348,7 @@ $(document).ready(function () {
             row.child.hide();
             tr.removeClass('shown');
         } else {
-            row.child(format(row.data())).show();
+            row.child(format(row.data(), gameBetStats[row.data().gameId])).show();
             tr.addClass('shown');
         }
     });
@@ -349,6 +373,8 @@ $(document).ready(function () {
                 return (row.free_bonus_count > 0) ? data / row.free_bonus_count : data;
             } }
         ],
+        paging: false,
+        info: false,
         order: [[1, 'asc']],
     });
     
@@ -360,7 +386,7 @@ $(document).ready(function () {
             row.child.hide();
             tr.removeClass('shown');
         } else {
-            row.child(format(row.data())).show();
+            row.child(format(row.data(), funGameBetStats[row.data().gameId])).show();
             tr.addClass('shown');
         }
     });
@@ -383,7 +409,8 @@ $(document).ready(function () {
     let fontColorInput = document.getElementById("fontColor")
     let clearDbButton = document.getElementById("clearDb")
     let deleteDbButton = document.getElementById("deleteDb")
-    let createSession = document.getElementById("createSession")
+    let createSessionButton = document.getElementById("createSession")
+    let currentSession = document.getElementById("currentSession")
     
     if (backgroundColorInput) {
         backgroundColorInput.addEventListener("input", function() { updateColor() })
@@ -399,11 +426,14 @@ $(document).ready(function () {
     if (deleteDbButton) {
         deleteDbButton.addEventListener("click", function() { deleteDatabase() })
     }
-    if (createSession) {
-        createSession.addEventListener("click", function() { createNewSession() })
+    if (createSessionButton) {
+        createSessionButton.addEventListener("click", function() { createNewSession() })
     }
     chrome.runtime.onMessage.addListener(messageHandler);
     chrome.runtime.sendMessage({ id: "registerStatsPage" }, function() {});
     chrome.runtime.sendMessage({ id: "getRecords" }, function() {});
     chrome.runtime.sendMessage({ id: "getSettings" }, function() {});
+    if (currentSession) {
+        chrome.runtime.sendMessage({ id: "getSessionRecords" }, function() {});
+    }
 });

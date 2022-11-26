@@ -223,20 +223,31 @@ function settingsChanged(settings) {
 
 function getSessionRecords() {
     getAllRecords("sessions").then((sessionsData) => {
-        
         chrome.runtime.sendMessage({ id: "reloadSessions", data: sessionsData })
         
-        getAllRecords("session_game_stats").then((gameStatsData) => {
-            getAllRecords("session_fun_game_stats").then((funStatsData) => {
-                chrome.runtime.sendMessage({ id: "reloadSessionRecords", data: gameStatsData, funData: funStatsData })
-            })
-        })
-        getAllRecords("session_game_bet_stats").then((gameBetData) => {
-            getAllRecords("session_fun_game_bet_stats").then((funBetData) => {
-                chrome.runtime.sendMessage({ id: "reloadSessionBetRecords", data: gameBetData, funData: funBetData })
-            })
-        })
+        //getAllRecords("session_game_stats").then((gameStatsData) => {
+        //    getAllRecords("session_fun_game_stats").then((funStatsData) => {
+        //        chrome.runtime.sendMessage({ id: "reloadSessionRecords", data: gameStatsData, funData: funStatsData })
+        //    })
+        //})
+        //getAllRecords("session_game_bet_stats").then((gameBetData) => {
+        //    getAllRecords("session_fun_game_bet_stats").then((funBetData) => {
+        //        chrome.runtime.sendMessage({ id: "reloadSessionBetRecords", data: gameBetData, funData: funBetData })
+        //    })
+        //})
     })
+}
+
+function zeroPadding(str, length) {
+    return ("0000" + str).substr(-length)
+}
+
+function dateFormat(date) {
+    return date.getFullYear() + "-" +
+        zeroPadding(date.getMonth()+1, 2) + "-" +
+        zeroPadding(date.getDate(), 2) + " " +
+        zeroPadding(date.getHours(), 2) + ":" +
+        zeroPadding(date.getMinutes(), 2)
 }
 
 function createNewSession() {
@@ -247,6 +258,19 @@ function createNewSession() {
             sessionInfo.activeSessionId = null
             sessionInfo.nextSessionId = 1
         }
+        if (sessionInfo.activeSessionId) {
+            getRecord('sessions', sessionInfo.activeSessionId).then((activeSession) => {
+                if (activeSession) {
+                    activeSession.end = dateFormat(new Date())
+                    const sessionTransaction = db.transaction("sessions", "readwrite");
+                    const sessionObjectStore = sessionTransaction.objectStore("sessions");
+                    const sessionUpdateRequest = sessionObjectStore.put(activeSession);
+                    sessionUpdateRequest.onsuccess = () => {
+                        chrome.runtime.sendMessage({ id: "updateSession", data: activeSession })
+                    }
+                }
+            })
+        }
         sessionInfo.activeSessionId = sessionInfo.nextSessionId
         sessionInfo.nextSessionId += 1
         const transaction = db.transaction("session_info", "readwrite");
@@ -254,7 +278,7 @@ function createNewSession() {
         const updateRequest = objectStore.put(sessionInfo);
         updateRequest.onsuccess = () => {
             let now = new Date()
-            let sessionRecord = { sessionId: sessionInfo.activeSessionId, start: now.toString() }
+            let sessionRecord = { sessionId: sessionInfo.activeSessionId, start: dateFormat(now) }
             const sessionTransaction = db.transaction("sessions", "readwrite");
             const sessionObjectStore = sessionTransaction.objectStore("sessions");
             const sessionUpdateRequest = sessionObjectStore.put(sessionRecord);
