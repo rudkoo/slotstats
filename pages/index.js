@@ -5,6 +5,7 @@ var games = {}
 var gameBetStats = {}
 var funGames = {}
 var funGameBetStats = {}
+var isSessionPage = false
 
 chrome.storage.local.onChanged.addListener(function (changes, namespace) {
     for (let [key, { oldValue, newValue }] of Object.entries(changes)) {
@@ -18,25 +19,29 @@ chrome.storage.local.onChanged.addListener(function (changes, namespace) {
 function messageHandler(msg, sender, sendResponse) {
     console.log("### from index.js: " + msg.id);
     if (msg.id == "activeGameChanged") {
-        $("#name").text(msg.gameId)
+        $("#name").text(msg.gameName)
     } else if (msg.id == "updateRecord") {
         updateRecord(msg.gameStats, msg.isFunGame)
     } else if (msg.id == "updateBetRecord") {
         updateBetRecord(msg.betStats, msg.isFunGame)
         updateOverallTable()
     } else if (msg.id == "reloadRecords") {
-        reloadRecords(msg.data, msg.funData)
+        if (!isSessionPage) {
+            reloadRecords(msg.data, msg.funData)
+        }
     } else if (msg.id == "reloadBetRecords") {
-        reloadBetRecords(msg.data, msg.funData)
-        updateOverallTable()
+        if (!isSessionPage) {
+            reloadBetRecords(msg.data, msg.funData)
+            updateOverallTable()
+        }
     } else if (msg.id == "settingsChanged") {
         updateSettings(msg.settings)
     } else if (msg.id == "reloadSessions") {
         reloadSessions(msg.data)
     } else if (msg.id == "reloadSessionRecords") {
-        reloadSessionRecords(msg.data, msg.funData)
+        reloadSessionRecords(msg.data, msg.funData, msg.sessionId)
     } else if (msg.id == "reloadSessionBetRecords") {
-        reloadSessionBetRecords(msg.data, msg.funData)
+        reloadSessionBetRecords(msg.data, msg.funData, msg.sessionId)
     } else if (msg.id == "newSessionCreated") {
         newSessionCreated(msg.data)
     } else if (msg.id == "updateSession") {
@@ -225,6 +230,16 @@ function sessionLabelFormat(sessionData) {
     return text
 }
 
+function selectSession(index) {
+    if ($('#currentSession')) {
+        let options = $('#currentSession').children()
+        if (index >= 0 && index < options.length) {
+            options[index].selected = 'selected'
+            chrome.runtime.sendMessage({ id: "getSessionRecords", sessionId: options[index].value }, function() {});
+        }
+    }
+}
+
 function addSessionToList(sessionData) {
     if ($('#currentSession')) {
         let text = sessionLabelFormat(sessionData)
@@ -233,15 +248,25 @@ function addSessionToList(sessionData) {
 }
 
 function reloadSessions(sessionData) {
-    for (let item of sessionData) {
-        addSessionToList(item)
+    if ($('#currentSession')) {
+        for (let item of sessionData) {
+            addSessionToList(item)
+        }
+        selectSession($('#currentSession').children().length - 1)
     }
 }
  
-function reloadSessionRecords(statsData, funStatsData) {
+function reloadSessionRecords(statsData, funStatsData, sessionId) {
+    if ($('#currentSession') && $('#currentSession').val() == sessionId) {
+        reloadRecords(statsData, funStatsData)
+    }
 }
 
-function reloadSessionBetRecords(statsData, funStatsData) {
+function reloadSessionBetRecords(statsData, funStatsData, sessionId) {
+    if ($('#currentSession') && $('#currentSession').val() == sessionId) {
+        reloadBetRecords(statsData, funStatsData)
+        updateOverallTable()
+    }
 }
 
 function createNewSession() {
@@ -249,7 +274,10 @@ function createNewSession() {
 }
 
 function newSessionCreated(newSession) {
-    addSessionToList(newSession)
+    if ($('#currentSession')) {
+        addSessionToList(newSession)
+        selectSession($('#currentSession').children().length - 1)
+    }
 }
 
 function updateSession(updatedSession) {
@@ -434,6 +462,10 @@ $(document).ready(function () {
     chrome.runtime.sendMessage({ id: "getRecords" }, function() {});
     chrome.runtime.sendMessage({ id: "getSettings" }, function() {});
     if (currentSession) {
-        chrome.runtime.sendMessage({ id: "getSessionRecords" }, function() {});
+        isSessionPage = true
+        chrome.runtime.sendMessage({ id: "getSessions" }, function() {});
+        currentSession.addEventListener("change", function() {
+            chrome.runtime.sendMessage({ id: "getSessionRecords", sessionId: currentSession.value }, function() {});
+        })
     }
 });

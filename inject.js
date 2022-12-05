@@ -55,10 +55,45 @@
 //    return send.apply(this, arguments);
 //};
 
+class LaunchProcessor {
+    
+    constructor() {
+        this.uriPatterns = []
+    }
+    
+    isValidProcessor(url) {
+        for (let pattern of this.uriPatterns) {
+            //console.log("pattern: " + pattern + ", url: " + httpRequest.url)
+            if (url.match(pattern)) {
+                //console.log("match")
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    processPage() {
+    }
+}
+
+class YggdrasilLaunchProcessor extends LaunchProcessor {
+    constructor() {
+        super()
+        this.provider = "yggdrasil"
+        this.uriPatterns = [".*://.*.yggdrasilgaming.com/slots/.*/.*", ".*://.*.yggdrasilgaming.com/app/.*/.*", ".*://.*.yggdrasilgaming.com/init/launchClient.html.*"]
+    }
+    
+    processPage() {
+        let requestParams = new URLSearchParams(document.location.search)
+        let gameId = requestParams.get("gameid")
+        chrome.runtime.sendMessage({ id: "registerGame", gameId: gameId, gameName: gameId, providerId: this.provider }, function() {}); // TODO - set game name
+    }
+}
+
 
 function messageHandler(event) {
     if (event.data.msgId == "registerGame") {
-        chrome.runtime.sendMessage({ id: "registerGame", gameId: event.data.currentGame }, function() {});
+        chrome.runtime.sendMessage({ id: "registerGame", gameId: event.data.gameId, gameName: event.data.gameName }, function() {});
     }
     else if (event.data.msgId == "saveSpin") {
         console.log(event.data.spin)
@@ -69,6 +104,16 @@ function messageHandler(event) {
     }
     else if (event.data.msgId == "log") {
         console.log("[Slotstats]:" + event.data.message)
+    }
+}
+
+LaunchProcessor.processors = [ new YggdrasilLaunchProcessor() ]
+
+function checkLaunchPage() {
+    for (let processor of LaunchProcessor.processors) {
+        if (processor.isValidProcessor(document.URL)) {
+            processor.processPage()
+        }
     }
 }
 
@@ -91,8 +136,9 @@ function interceptData() {
 function checkForDOM() {
     console.log('checkForDOM')
     if (document.body && document.head) {
-        console.log('interceptData')
+        console.log('interceptData: ' + document.URL)
         window.addEventListener("message", messageHandler);
+        checkLaunchPage();
         interceptData();
     } else {
         requestIdleCallback(checkForDOM);
