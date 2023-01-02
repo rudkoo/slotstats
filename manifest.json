@@ -2,15 +2,13 @@
 
     "description": "Slot statistics",
     "manifest_version": 3,
-    "name": "Slotstats",
+    "name": "SlotStats",
     "version": "1.0",
 
     "permissions": [
         "webNavigation",
-        "webRequest",
         "storage",
-        "tabs",
-        "<all_urls>"
+        "tabs"
     ],
 
     "background": {
@@ -18,11 +16,12 @@
     },
     
     "action": {
-        "title": "Your Browser Action Name"
+        "default_title": "SlotStats",
+        "default_popup": "pages/popup.html"
     },
     
     "web_accessible_resources": [{
-        "resources": ["requests.js", "slots.js"],
+        "resources": ["requests.js", "slots.js", "currencies.js", "launchers.js"],
         "matches": ["<all_urls>"]
     }],
     
@@ -34,14 +33,13 @@
             "*://*.yggdrasilgaming.com/slots/*/*",
             "*://*.yggdrasilgaming.com/app/*/*",
             "*://*.yggdrasilgaming.com/init/launchClient.html*",
+            "*://*.hacksawgaming.com/*/*/index.html*",
             "*://*.localhost/slotstats_tester/*"
         ],
-        "match_about_blank": true,
         "run_at": "document_start",
         "all_frames": true,
         "js": [
-            "inject.js",
-            "slots.js"
+            "inject.js"
         ]
     }],
     

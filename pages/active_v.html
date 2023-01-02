@@ -4,64 +4,47 @@
     <link rel="stylesheet" href="../lib/datatables.min.css">
     <script src="../lib/jquery.min.js"></script>
     <script src="../lib/datatables.min.js"></script>
+    <script src="../currencies.js"></script>
     <script src="index.js"></script>
     <link rel="stylesheet" href="styles.css">
-    <title>A Meaningful Page Title</title>
+    <title>SlotStats - Active slot</title>
 </head>
 <body>
-    <div class="greenbox">
-        <div class="personalInfo boxWithShadow whiteText">
-            <div class="divTableBody">
-                <div class="boxHeader">
-                    <div class="boxHeaderCell textBold">DOG HOUSE MEGAWAYS</div>
-                    <div class="boxHeaderCell textRight">PRAGMATIC PLAY</div>
+    <div class="gameInfo boxWithShadow whiteText">
+        <div class="divTableBody">
+            <div class="boxHeader">
+                <div id="gameNameText" class="boxHeaderCell textBold"></div>
+                <div id="providerNameText" class="boxHeaderCell textRight"></div>
+            </div>
+            <div class="boxCell">
+                <div class="boxCell boxSecondaryHeader"> </div>
+                <div class="boxRowWithUnderline">
+                    <div class="boxCellCaption">Max Win</div>
+                    <div id="maxWinText" class="boxCell textRight"></div>
                 </div>
-                <div class="boxCell">
-                    <div class="boxRowWithUnderline">
-                        <div class="boxCell">Max Win</div>
-                        <div class="boxCell textRight"></div>
-                    </div>
-                    <div class="boxRowWithUnderline">
-                        <div class="boxCell">Max X</div>
-                        <div class="boxCell textRight"></div>
-                    </div>
-                    <div class="boxRowWithUnderline">
-                        <div class="boxCell">Average X</div>
-                        <div class="boxCell textRight"></div>
-                    </div>
-                    
-                    <div class="boxRowWithUnderline">
-                        <div class="boxCell">Total Bets</div>
-                        <div class="boxCell textRight"></div>
-                    </div>
-                    <div class="boxRowWithUnderline">
-                        <div class="boxCell">Total Win</div>
-                        <div class="boxCell textRight"></div>
-                    </div>
-                    <div class="boxRowWithUnderline">
-                        <div class="boxCell">Total Spins</div>
-                        <div class="boxCell textRight"></div>
-                    </div>
-                    <div class="boxRowWithUnderline">
-                        <div class="boxCell">Bought bonuses</div>
-                        <div class="boxCell textRight"></div>
-                    </div>
-                    <div class="boxRowWithUnderline">
-                        <div class="boxCell">Free bonuses</div>
-                        <div class="boxCell textRight"></div>
-                    </div>
-                    <div class="boxRowWithUnderline">
-                        <div class="boxCell">Profit/Loss</div>
-                        <div class="boxCell textRight"></div>
-                    </div>
-                    <div class="boxRowWithUnderline">
-                        <div class="boxCell">Avg profit/spin</div>
-                        <div class="boxCell textRight"></div>
-                    </div>
-                    <div class="boxRowWithUnderline">
-                        <div class="boxCell">Avg profit/bonus</div>
-                        <div class="boxCell textRight"></div>
-                    </div>
+                <div class="boxRowWithUnderline">
+                    <div class="boxCellCaption">Max X</div>
+                    <div id="maxXText" class="boxCell textRight"></div>
+                </div>
+                <div class="boxRowWithUnderline">
+                    <div class="boxCellCaption">Avg bonus X</div>
+                    <div id="maxAvgBonusXText" class="boxCell textRight"></div>
+                </div>
+                <div class="boxRowWithUnderline">
+                    <div class="boxCellCaption">Personal RTP</div>
+                    <div id="personalRTPText" class="boxCell textRight"></div>
+                </div>
+                <div class="boxRowWithUnderline">
+                    <div class="boxCellCaption">Total Spins</div>
+                    <div id="totalSpinsText" class="boxCell textRight"></div>
+                </div>
+                <div class="boxRowWithUnderline">
+                    <div class="boxCellCaption">Bought bonuses</div>
+                    <div id="boughtBonusesText" class="boxCell textRight"></div>
+                </div>
+                <div class="boxRowWithUnderline">
+                    <div class="boxCellCaption">Free bonuses</div>
+                    <div id="freeBonusesText" class="boxCell textRight"></div>
                 </div>
             </div>
         </div>
@@ -69,11 +52,11 @@
 
     <div class="colorSettings">
         <div class="colorSetting">
-            <div>Background color</div>
+            <div class="caption">Background color</div>
             <input type="color" id="backgroundColor" value="#ff0000">
         </div>
         <div class="colorSetting">
-            <div>Font color</div>
+            <div class="caption">Font color</div>
             <input type="color" id="fontColor" value="#ff0000">
         </div>
     </div>

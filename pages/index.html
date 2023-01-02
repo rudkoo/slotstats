@@ -4,112 +4,17 @@
     <link rel="stylesheet" href="../lib/datatables.min.css">
     <script src="../lib/jquery.min.js"></script>
     <script src="../lib/datatables.min.js"></script>
+    <script src="../currencies.js"></script>
     <script src="index.js"></script>
     <link rel="stylesheet" href="styles.css">
-    <title>A Meaningful Page Title</title>
+    <title>Overall statistics</title>
 </head>
 <body>
+    <!--
     <button id="clearDb" type="button">Clear DB</button>
     <button id="deleteDb" type="button">Delete DB</button>
-     
-    <div class="gameInfo boxWithShadow whiteText">
-        <div class="divTableBody">
-            <div class="boxHeader">
-                <div id="name" class="boxHeaderCell textBold">DOG HOUSE MEGAWAYS</div>
-                <div class="boxHeaderCell textRight">PRAGMATIC PLAY</div>
-            </div>
-            <div class="boxRow">
-                <div class="boxCell">
-                    <div class="boxCell boxSecondaryHeader">Game Info</div>
-                    <div class="boxRowWithUnderline">
-                        <div class="boxCell">Potential</div>
-                        <div class="boxCell textRight">10000x</div>
-                    </div>
-                    <div class="boxRowWithUnderline">
-                        <div class="boxCell">RTP</div>
-                        <div class="boxCell textRight">97%</div>
-                    </div>
-                    <div class="boxRowWithUnderline">
-                        <div class="boxCell">Volatility</div>
-                        <div class="boxCell textRight">10/10</div>
-                    </div>
-                </div>
-                <div class="separator"></div>
-                <div class="boxCell">
-                    <div class="boxCell boxSecondaryHeader">Personal information</div>
-                    <div class="boxRowWithUnderline">
-                        <div class="boxCell">Max Win</div>
-                        <div class="boxCell textRight"></div>
-                    </div>
-                    <div class="boxRowWithUnderline">
-                        <div class="boxCell">Max X</div>
-                        <div class="boxCell textRight"></div>
-                    </div>
-                    <div class="boxRowWithUnderline">
-                        <div class="boxCell">Average X</div>
-                        <div class="boxCell textRight"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+    -->
     
-    <div class="personalInfo boxWithShadow whiteText">
-        <div class="divTableBody">
-            <div class="boxHeader">
-                <div class="boxHeaderCell textBold">DOG HOUSE MEGAWAYS</div>
-                <div class="boxHeaderCell textRight">PRAGMATIC PLAY</div>
-            </div>
-            <div class="boxCell">
-                <div class="boxRowWithUnderline">
-                    <div class="boxCell">Max Win</div>
-                    <div class="boxCell textRight"></div>
-                </div>
-                <div class="boxRowWithUnderline">
-                    <div class="boxCell">Max X</div>
-                    <div class="boxCell textRight"></div>
-                </div>
-                <div class="boxRowWithUnderline">
-                    <div class="boxCell">Average X</div>
-                    <div class="boxCell textRight"></div>
-                </div>
-                
-                <div class="boxRowWithUnderline">
-                    <div class="boxCell">Total Bets</div>
-                    <div class="boxCell textRight"></div>
-                </div>
-                <div class="boxRowWithUnderline">
-                    <div class="boxCell">Total Win</div>
-                    <div class="boxCell textRight"></div>
-                </div>
-                <div class="boxRowWithUnderline">
-                    <div class="boxCell">Total Spins</div>
-                    <div class="boxCell textRight"></div>
-                </div>
-                <div class="boxRowWithUnderline">
-                    <div class="boxCell">Bought bonuses</div>
-                    <div class="boxCell textRight"></div>
-                </div>
-                <div class="boxRowWithUnderline">
-                    <div class="boxCell">Free bonuses</div>
-                    <div class="boxCell textRight"></div>
-                </div>
-                <div class="boxRowWithUnderline">
-                    <div class="boxCell">Profit/Loss</div>
-                    <div class="boxCell textRight"></div>
-                </div>
-                <div class="boxRowWithUnderline">
-                    <div class="boxCell">Avg profit/spin</div>
-                    <div class="boxCell textRight"></div>
-                </div>
-                <div class="boxRowWithUnderline">
-                    <div class="boxCell">Avg profit/bonus</div>
-                    <div class="boxCell textRight"></div>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <fieldset>
         <legend>Overall statistics</legend>
         <table id="overall_stats" class="display" style="width:100%">
@@ -132,12 +37,12 @@
                     <th></th>
                     <th>Game</th>
                     <th>Max X</th>
-                    <th>Average X</th>
-                    <th>Bought bonuses</th>
-                    <th>Free bonuses</th>
+                    <th>Average bonus X</th>
                     <th>Number of spins</th>
                     <th>Spins since last free bonus</th>
                     <th>Average spins / bonus</th>
+                    <th>Bought bonuses</th>
+                    <th>Free bonuses</th>
                 </tr>
             </thead>
             <tfoot>
@@ -145,12 +50,12 @@
                     <th></th>
                     <th>Game</th>
                     <th>Max X</th>
-                    <th>Average X</th>
-                    <th>Bought bonuses</th>
-                    <th>Free bonuses</th>
+                    <th>Average bonus X</th>
                     <th>Number of spins</th>
                     <th>Spins since last free bonus</th>
                     <th>Average spins / bonus</th>
+                    <th>Bought bonuses</th>
+                    <th>Free bonuses</th>
                 </tr>
             </tfoot>
         </table>
@@ -164,12 +69,12 @@
                     <th></th>
                     <th>Game</th>
                     <th>Max X</th>
-                    <th>Average X</th>
-                    <th>Bought bonuses</th>
-                    <th>Free bonuses</th>
+                    <th>Average bonus X</th>
                     <th>Number of spins</th>
                     <th>Spins since last free bonus</th>
                     <th>Average spins / bonus</th>
+                    <th>Bought bonuses</th>
+                    <th>Free bonuses</th>
                 </tr>
             </thead>
             <tfoot>
@@ -177,12 +82,12 @@
                     <th></th>
                     <th>Game</th>
                     <th>Max X</th>
-                    <th>Average X</th>
-                    <th>Bought bonuses</th>
-                    <th>Free bonuses</th>
+                    <th>Average bonus X</th>
                     <th>Number of spins</th>
                     <th>Spins since last free bonus</th>
                     <th>Average spins / bonus</th>
+                    <th>Bought bonuses</th>
+                    <th>Free bonuses</th>
                 </tr>
             </tfoot>
         </table>

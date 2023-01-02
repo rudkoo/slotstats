@@ -1,0 +1,3 @@
+ - Set recordingActive to false in requests.js
+ - Hide the Clear DB and Delete DB buttons on index.html
+ - turn off debug logging

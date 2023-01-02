@@ -255,7 +255,7 @@ yggdrasilSlots = {
     "10255": { name: "Boilin' Pots", BUY_BONUS: 49.5 },
     "1023": { name: "BountyPop", bonus: 100 },
     "7375": { name: "Brazil Bomba" },
-    "10267": { name: "Buffalo Blox Gigablox" },
+    "10267": { name: "Buffalo Blox Gigablox", higherChanceSpin: { BUYIN: 1.25 } },
     "1028": { name: "Buster Hammer Carnival" },
     "10292": { name: "Calavera Crush", BUY_BONUS: 100, SUPER_BUY_BONUS: 400 },
     "7402": { name: "Carol of the Elves" },
@@ -442,8 +442,9 @@ yggdrasilSlots = {
     "10309": { name: "Voodoo Hex", BUY_FS_7: 52, BUY_FS_RAND: 70, BUY_FS_15: 111 },
     "10303": { name: "Arctic Sorcerer Gigablox" },
     "10310": { name: "Jekyllz Wild UltraNudge", buy_bonus: 125, super_buy_bonus: 350 },
-    "10320": { name: "CritterPop", "bonus-buy-1": 125, "bonus-buy-2": 250, "bonus-buy-3": 500 },
+    "10320": { name: "CritterPop", "bonus-buy-1": 125, "bonus-buy-2": 250, "bonus-buy-3": 500 }, // higher chance - ante: 1.25
     "10290": { name: "Florageddon!", buy_bonus: 100, super_buy_bonus: 400 },
     "10305": { name: "7 Gold Gigablox", "BUY_BONUS-1": 60, "BUY_BONUS-2": 120, "BUY_BONUS-3": 240, "BB_BIG_GIGA": 150 },
     "10365": { name: "Cannonade!", BUYBONUS: 100, BUYMAXBONUS: 500 },
+    "10383": { name: "Dragon Blox", BUY_BONUS: 100, BUY_FS_RAND: 65 },
 }

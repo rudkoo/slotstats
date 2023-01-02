@@ -31,9 +31,12 @@ var recordingActive
         inject() {
             const xhr = window.XMLHttpRequest;
             const processRequest = e => {
-                    //this.handleXhrLoad(e)
                     const request = new HttpRequest(e);
-                    this.notifyWatchers(request);
+                    try {
+                        this.notifyWatchers(request);
+                    } catch (e) {
+                        window.postMessage({ msgId: "log", message: "Error: " + e.toString() }, "*")
+                    }
                 };
             
             class XMLHttpRequestWrapper {
@@ -119,6 +122,7 @@ var recordingActive
                 var n;
                 n = t, {}.propertyIsEnumerable.call(xhr, n) && (XMLHttpRequestWrapper[n] = xhr[n])
             }))
+            window.postMessage({ msgId: "log", message: "injecting XMLHttpRequest" }, "*")
             window.XMLHttpRequest = XMLHttpRequestWrapper
         }
     }
@@ -143,7 +147,11 @@ var recordingActive
                             body: data.body,
                             response: text
                         });
-                        this.notifyWatchers(request)
+                        try {
+                            this.notifyWatchers(request)
+                        } catch (e) {
+                            window.postMessage({ msgId: "log", message: "Error: " + e.toString() }, "*")
+                        }
                     })).catch((err => { reject(err) }))
                 })).catch((err => { reject(err) }))
             }))
@@ -156,15 +164,14 @@ var recordingActive
             this.gameId = "unknown"
             this.gameName = "unknown"
             this.bet = 0
+            this.baseBet = 0
             this.win = 0
             this.multiplier = 0
             this.isFunGame = false
             this.isBonus = false
-            this.noOfFreeSpins = 0
-            this.isFreeBonus = false
+            this.isFreeBonus = true
             this.timestamp = null
             this.currency = ""
-            this.bonusPrice = 0
         }
     }
     
@@ -176,9 +183,7 @@ var recordingActive
         
         isValidProcessor(httpRequest) {
             for (let pattern of this.uriPatterns) {
-                //console.log("pattern: " + pattern + ", url: " + httpRequest.url)
                 if (httpRequest.url.match(pattern)) {
-                    //console.log("match")
                     return true;
                 }
             }
@@ -192,8 +197,8 @@ var recordingActive
     class YggdrasilRequestProcessor extends RequestProcessor {
         constructor() {
             super()
-            this.uriPatterns = [".*://.*.yggdrasilgaming.com/slots/.*/.*", ".*://.*.yggdrasilgaming.com/app/.*/.*", ".*://.*.yggdrasilgaming.com/init/launchClient.html.*", ".*://.*.yggdrasilgaming.com/game.web/service.*"]
-            this.provider = "yggdrasil"
+            this.uriPatterns = [".*://.*.yggdrasilgaming.com/slots/.*/.*", ".*://.*.yggdrasilgaming.com/app/.*/.*", ".*://.*.yggdrasilgaming.com/init/launchClient.html.*", ".*://.*.yggdrasilgaming.com/game.web/service.*", ".*://.*localhost.*/slotstats_tester/pragmatic.cgi.*"]
+            this.provider = "Yggdrasil"
             this.currentSpin = null
         }
         
@@ -206,33 +211,69 @@ var recordingActive
             }
         }
         
-        isBonus(spinInfo, requestParams, gameInfo) {
-            let cmd = requestParams.get("cmd")
-            if (gameInfo && cmd in gameInfo) {
-                return true
-            } else if (cmd == "freespin") {
-                return true
-            } else if (spinInfo.eventdata.response != null && spinInfo.eventdata.response.clientData != null && 
-                ('freeSpinsAwarded' in spinInfo.eventdata.response.clientData ||
-                ('bonusTriggered' in spinInfo.eventdata.response.clientData && spinInfo.eventdata.response.clientData.bonusTriggered)))
-            {
+        isHigherChanceSpin(requestParams, gameInfo) {
+            if (gameInfo && gameInfo.higherChanceSpin && requestParams.get("cmd") in gameInfo.higherChanceSpin) {
                 return true
             } else {
                 return false
             }
         }
         
-        getNumberOfFreeSpins(spinInfo) {
-            if ('freeSpinsAwarded' in spinInfo.eventdata.response.clientData) {
-                return parseInt(spinInfo.eventdata.response.clientData.freeSpinsAwarded)
-            } else if ('playerState' in spinInfo.eventdata && 'freespinsRemaining' in spinInfo.eventdata.playerState) {
-                return parseInt(spinInfo.eventdata.playerState.freespinsRemaining)
-            } else {
-                return 0
+        isBonus(spinInfo, requestParams, gameInfo) {
+            let cmd = requestParams.get("cmd")
+            if (gameInfo && cmd in gameInfo) {
+                return true
             }
+            if (cmd && cmd.match(/free.?spin.*/i)) {
+                return true
+            }
+            for (let i = 0; i < spinInfo.length; ++i) {
+                if ('eventdata' in spinInfo[i]) {
+                    if ('freeSpinsAwarded' in spinInfo[i].eventdata && spinInfo[i].eventdata.freeSpinsAwarded > 0) {
+                        return true
+                    }
+                    if (spinInfo[i].eventdata.response != null && spinInfo[i].eventdata.response.clientData != null) {
+                        let state = {}
+                        if ('state' in spinInfo[i].eventdata.response.clientData && ("string" === typeof spinInfo[i].eventdata.response.clientData.state || spinInfo[i].eventdata.response.clientData.state instanceof String)) {
+                            state = JSON.parse(atob("" + spinInfo[i].eventdata.response.clientData.state))
+                        }
+                        
+                        if ('freeSpinsAwarded' in spinInfo[i].eventdata.response.clientData && parseInt(spinInfo[i].eventdata.response.clientData.freeSpinsAwarded) > 0) {
+                            return true
+                        } else if ('freeSpinsAwarded' in spinInfo[i].eventdata.response.clientData && parseInt(spinInfo[i].eventdata.response.clientData.freeSpinsAwarded) > 0) {
+                            return true
+                        } else if ('bonusTriggered' in spinInfo[i].eventdata.response.clientData && spinInfo[i].eventdata.response.clientData.bonusTriggered) {
+                            return true
+                        } else if ('slot_data' in state && 'state' in state.slot_data && 'feature_data' in state.slot_data.state && state.slot_data.state.feature_data.length > 1) {
+                            return true
+                        } else if ('data' in spinInfo[i].eventdata.response.clientData && spinInfo[i].eventdata.response.clientData.data.state == "FREE_SPINS") {
+                            return true
+                        } else if ('type' in spinInfo[i].eventdata.response.clientData && spinInfo[i].eventdata.response.clientData.type.match(/freespin/i)) {
+                            return true
+                        } else if ('bonus' in spinInfo[i].eventdata.response.clientData && spinInfo[i].eventdata.response.clientData.bonus) {
+                            return true
+                        } else if ('gameMode' in spinInfo[i].eventdata.response.clientData && spinInfo[i].eventdata.response.clientData.gameMode.match(/free.?spin/i)) {
+                            return true
+                        } else if ('output' in spinInfo[i].eventdata.response.clientData && spinInfo[i].eventdata.response.clientData.output.length > 0 && 'bonusInfo' in spinInfo[i].eventdata.response.clientData.output[0]) {
+                            for (let j = 0; j < spinInfo[i].eventdata.response.clientData.output[0].bonusInfo.length; ++j) {
+                                if (spinInfo[i].eventdata.response.clientData.output[0].bonusInfo[j].bonusName.match(/freespin/i)) {
+                                    return true
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            return false
         }
         
         processRequest(httpRequest) {
+            
+            if (typeof(httpRequest.response) != "string") {
+                return
+            }
+            
             let postParams = window._POST_PARAMS_
             let response = JSON.parse(httpRequest.response)
             
@@ -240,45 +281,51 @@ var recordingActive
                 let requestParams = new URLSearchParams(httpRequest.body);
                 let gameId = postParams.gameid
                 let gameInfo = yggdrasilSlots[gameId]
-                let spinInfo = response.data.wager.bets[0]
+                let spinInfo = response.data.wager.bets
                 let isBonus = this.isBonus(spinInfo, requestParams, gameInfo)
                 let isFinished = response.data.wager.status.match(/finished/i) != null
                 let spin = new Spin()
                 let spinToBeSaved = null
                 let gameName = gameInfo ? gameInfo["name"] : gameId
+                let isBoughtBonus = this.isBoughtBonus(requestParams, gameInfo)
+                let isHigherChanceSpin = this.isHigherChanceSpin(requestParams, gameInfo)
                 
                 spin.provider = this.provider
                 spin.gameId = gameId
                 spin.gameName = gameName
                 spin.isBonus = isBonus
                 spin.isFunGame = !("key" in postParams && postParams.key != "")
-                spin.currency = spinInfo.betcurrency
+                spin.currency = spinInfo[0].betcurrency
                 
-                if (spinInfo.step == 1) {
-                    spin.bet = parseFloat(spinInfo.betamount)
+                if (spinInfo[0].step == 1) {
+                    spin.bet = parseFloat(spinInfo[0].betamount)
+                    if (isHigherChanceSpin) {
+                        spin.baseBet = spin.bet / gameInfo.higherChanceSpin[requestParams.get("cmd")]
+                    } else if (isBoughtBonus) {
+                        let multiplier = gameInfo ? gameInfo[requestParams.get("cmd")] : 1
+                        spin.baseBet = spin.bet / multiplier
+                        spin.isFreeBonus = false
+                    } else {
+                        spin.baseBet = spin.bet
+                    }
                     this.currentSpin = spin
                 }
                 
                 if (isBonus || (this.currentSpin && this.currentSpin.isBonus)) {
-                    if (spinInfo.step == 1) {
-                        let price = parseFloat(spinInfo.betamount)
-                        let multiplier = gameInfo ? gameInfo[requestParams.get("cmd")] : 1
-                        let isFreeBonus = this.isBoughtBonus(requestParams, gameInfo) == false
-                        this.currentSpin.bet = price / multiplier
-                        this.currentSpin.bonusPrice = isFreeBonus ? 0 : price
-                        this.currentSpin.noOfFreeSpins = this.getNumberOfFreeSpins(spinInfo)
-                        this.currentSpin.isFreeBonus = isFreeBonus
+                    if (!this.currentSpin.isBonus) {
+                        this.currentSpin.isBonus = isBonus
                     }
+                    
                     if (isFinished) {
                         this.currentSpin.timestamp = response.data.wager.timestamp
-                        this.currentSpin.win = parseFloat(spinInfo.wonamount)
-                        this.currentSpin.multiplier = this.currentSpin.win / this.currentSpin.bet
+                        this.currentSpin.win = parseFloat(spinInfo[0].wonamount)
+                        this.currentSpin.multiplier = this.currentSpin.win / this.currentSpin.baseBet
                         spinToBeSaved = this.currentSpin
                         this.currentSpin = null
                     }
                 } else if (isFinished) {
-                    this.currentSpin.win = parseFloat(spinInfo.wonamount)
-                    this.currentSpin.multiplier = this.currentSpin.win / this.currentSpin.bet
+                    this.currentSpin.win = parseFloat(spinInfo[0].wonamount)
+                    this.currentSpin.multiplier = this.currentSpin.win / this.currentSpin.baseBet
                     this.currentSpin.timestamp = response.data.wager.timestamp
                     spinToBeSaved = this.currentSpin
                     this.currentSpin = null
@@ -289,7 +336,8 @@ var recordingActive
                 }
                     
                 if (recordingActive) {
-                    window.postMessage({ msgId: "recordResponse", record: null, spin: spinToBeSaved }, "*")
+                    httpRequest.body = httpRequest.body.toString()
+                    window.postMessage({ msgId: "recordResponse", record: httpRequest, spin: spinToBeSaved }, "*")                  
                 }
             }
         }
@@ -299,7 +347,7 @@ var recordingActive
         
         constructor() {
             super()
-            this.provider = "pragmatic"
+            this.provider = "Pragmatic Play"
             this.currentSpin = null
             this.lastBet = 0
             this.respinCount = 0
@@ -321,7 +369,7 @@ var recordingActive
             let spinToBeSaved = null
             
             if (action == "doInit") {
-                window.postMessage({ msgId: "registerGame", gameId: gameId, gameName: gameName, providerId: this.provider }, "*")
+                window.postMessage({ msgId: "registerGame", gameId: gameId, gameName: gameName, providerName: this.provider }, "*")
             } else if (action == "doSpin" || action == "doBonus") {
                 let isBonus = params.has("fsmul") || params.has("fs_total") || params.has("rsb_c")
                 let spin = new Spin()
@@ -339,10 +387,10 @@ var recordingActive
                 spin.gameName = gameName
                 
                 if (params.has("c") && params.has("l")) {
-                    spin.bet = parseFloat(params.get("c")) * parseFloat(params.get("l"))
-                    this.lastBet = spin.bet
+                    spin.baseBet = parseFloat(params.get("c")) * parseFloat(params.get("l"))
+                    this.lastBet = spin.baseBet
                 } else if (this.lastBet) {
-                    spin.bet = this.lastBet
+                    spin.baseBet = this.lastBet
                 }
                 
                 if (isBonus || (this.currentSpin && this.currentSpin.isBonus)) {
@@ -351,16 +399,14 @@ var recordingActive
                     }
                     if (params.has("fs_total") || (params.has("rsb_m") && params.has("rsb_c") && parseInt(params.get("rsb_m")) == parseInt(params.get("rsb_c")))) {
                         this.currentSpin.win = totalWin
-                        if (params.has("fs_total")) {
-                            this.currentSpin.noOfFreeSpins = parseInt(params.get("fs_total"))
-                        }
-                        this.currentSpin.multiplier = this.currentSpin.win / this.currentSpin.bet
+                        this.currentSpin.multiplier = this.currentSpin.win / this.currentSpin.baseBet
                     }
                     if (requestParams.has("pur") && gameInfo) {
                         let bonusIndex = parseInt(requestParams.get("pur"))
-                        this.currentSpin.bonusPrice = gameInfo["bonus_buy"][bonusIndex] * this.currentSpin.bet
+                        this.currentSpin.bet = gameInfo["bonus_buy"][bonusIndex] * this.currentSpin.baseBet
                     }
                 } else {
+                    spin.bet = spin.baseBet
                     if (continued) {
                         if (params.has("rs_p")) {
                             this.respinCount = parseInt(params.get("rs_p")) + 1
@@ -370,9 +416,11 @@ var recordingActive
                         }
                         if (continuedEnd || (params.has("rs_t") && this.respinCount == parseInt(params.get("rs_t")))) {
                             spin.win = totalWin
+                            spin.multiplier = spin.win / spin.baseBet
                             spinToBeSaved = spin
                         }
                     } else if (params.has("c") && params.has("l")) {
+                        spin.multiplier = spin.win / spin.baseBet
                         spinToBeSaved = spin
                     }
                 }
@@ -397,36 +445,132 @@ var recordingActive
         
         constructor() {
             super()
-            this.uriPatterns = [".*://.*.pragmaticplay.net/gs2c/v3/gameService.*", ".*://.*.pragmaticplay.net/gs2c/ge/v3/gameService.*", ".*://.*localhost.*/slotstats_tester/pragmatic.cgi.*"]
+            this.uriPatterns = [".*://.*.pragmaticplay.net/gs2c/v3/gameService.*", ".*://.*.pragmaticplay.net/gs2c/ge/v3/gameService.*"]
         }
     }
     
     class PragmaticV4RequestProcessor extends PragmaticRequestProcessor {
+        
         constructor() {
             super()
             this.uriPatterns = [".*://.*.pragmaticplay.net/gs2c/v4/gameService.*", ".*://.*.pragmaticplay.net/gs2c/ge/v4/gameService.*"]
         }
-        
-        //processRequest(httpRequest) {
-        //    let requestParams = new URLSearchParams(httpRequest.body);
-        //    let params = new URLSearchParams(httpRequest.response);
-        //    
-        //    this.game = requestParams.get("symbol")
-        //    this.bet = parseFloat(params.get("c")) * parseFloat(params.get("l"))
-        //    this.win = parseFloat(params.get("w"))
-        //    this.isFunGame = httpRequest.url.includes("demogamesfree")
-        //    this.isBonus = params.has("fsmul")
-        //    this.isFreeBonus = !params.has("pur")
-        //    this.timestamp = params.get("stime")
-        //    
-        //    window.postMessage(this, "*")
-        //}
     }
     
-    Injector.processors = [ new PragmaticV3RequestProcessor(), new PragmaticV4RequestProcessor(), new YggdrasilRequestProcessor() ]
+    class HacksawGamingProcessor extends RequestProcessor {
+        constructor() {
+            super()
+            this.uriPatterns = [".*://.*.hacksawgaming.com/api/play/bet.*", ".*://.*.hacksawgaming.com/api/play/gameLaunch.*"]
+            this.provider = "Hacksaw Gaming"
+            this.decoder = new TextDecoder()
+            this.currentSpin = null
+            this.currency = null
+            this.isFunMode = true
+            this.gameId = null
+            this.gameName = null
+            this.featureBuyData = {}
+            let processor = this
+            
+            if (window.hacksawCasino) {
+                window.hacksawCasino.PubSub.getChannel("casino").subscribe("startGame", function(e) {
+                    for (let bonus of e.featureBuyData) {
+                        processor.featureBuyData[bonus.bonusGameId] = parseInt(bonus.betCostMultiplier)
+                    }
+                })
+                window.hacksawCasino.PubSub.getChannel("casino").subscribe("initData", function(e) {
+                    processor.currency = e.currency
+                    processor.isFunMode = e.mode.match(/demo/i) != null
+                    processor.gameId = e.gameId
+                    processor.gameName = e.gameName
+                })
+            }
+        }
+        
+        getBonusEnterEvent(spinInfo) {
+            for (let eventItem of spinInfo.round.events) {
+                if (eventItem.etn == "feature_enter") {
+                    return eventItem
+                }
+            }
+            return null
+        }
+        
+        isBonus(spinInfo) {
+            let eventItem = this.getBonusEnterEvent(spinInfo)
+            return eventItem != null
+        }
+        
+        getBonusWin(spinInfo) {
+            for (let eventItem of spinInfo.round.events) {
+                if (eventItem.etn == "feature_exit") {
+                    return parseInt(eventItem.awa)
+                }
+            }
+            return 0
+        }
+        
+        getBonusBetMultiplier(request) {
+            if ("bets" in request && request.bets.length > 0 && "buyBonus" in request.bets[0]) {
+                return this.featureBuyData[request.bets[0].buyBonus]
+            } else {
+                return 1
+            }
+        }
+        
+        processRequest(httpRequest) {
+            let requestParams = new URLSearchParams(httpRequest.body);
+            
+            if (httpRequest.url.endsWith("gameLaunch")) {
+                window.postMessage({ msgId: "registerGame", gameId: this.gameId, gameName: this.gameName, providerName: this.provider }, "*")
+            } else if (httpRequest.url.endsWith("bet")) {
+                let request = JSON.parse(httpRequest.body)
+                let response = JSON.parse(this.decoder.decode(httpRequest.response))
+                let spinToBeSaved = null
+                let spin = new Spin()
+                spin.provider = this.provider
+                spin.gameId = this.gameId
+                spin.gameName = this.gameName
+                spin.isBonus = this.isBonus(response)
+                spin.isFunGame = this.isFunMode
+                spin.currency = this.currency
+                
+                if (this.currentSpin == null) {
+                    let baseBet = parseInt(request.bets[0].betAmount) / 100
+                    let bonusBetMultiplier = this.getBonusBetMultiplier(request)
+                    this.currentSpin = spin
+                    this.currentSpin.bet = baseBet * bonusBetMultiplier
+                    this.currentSpin.baseBet = baseBet
+                    
+                    if (this.currentSpin.isBonus) {
+                        this.currentSpin.isFreeBonus = !("buyBonus" in request.bets[0])
+                    }
+                }
+                
+                if (response.round.events.length > 0 && "awa" in response.round.events[response.round.events.length - 1]) {
+                    this.currentSpin.win = parseInt(response.round.events[response.round.events.length - 1].awa) / 100
+                }
+                
+                if (response.round.status && response.round.status.match(/completed/i)) {
+                    this.currentSpin.multiplier = this.currentSpin.win / this.currentSpin.baseBet
+                    this.currentSpin.timestamp = new Date(response.serverTime).getTime()
+                    spinToBeSaved = this.currentSpin
+                    this.currentSpin = null
+                }
+                
+                if (spinToBeSaved) {
+                    window.postMessage({ msgId: "saveSpin", spin: spinToBeSaved }, "*")
+                }
+                    
+                if (recordingActive) {
+                    window.postMessage({ msgId: "recordResponse", record: httpRequest, spin: spinToBeSaved }, "*")
+                }
+            }
+        }
+    }
+    
+    Injector.processors = [ new PragmaticV3RequestProcessor(), new PragmaticV4RequestProcessor(), new YggdrasilRequestProcessor(), new HacksawGamingProcessor() ]
     const xhrInjector = new XMLHttpRequestInjector();
     const fetchInjector = new FetchInjector();
-    const requestProcessor = new RequestProcessor();
     xhrInjector.inject();
     fetchInjector.inject();
     

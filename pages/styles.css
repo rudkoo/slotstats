@@ -1,12 +1,12 @@
 
 .gameInfo{
 	display: table;
-	width: 450px;
+	width: 100%;
 }
 .greenbox{
 	padding: 50px;
     background-color: green;
-    width: 260px;
+    width: 70%;
 }
 .personalInfo{
 	display: table;
@@ -20,9 +20,11 @@
 }
 .textRight {
     text-align: right;
+    flex: 2;
 }
 .whiteText {
     color: white;
+    font-size: 13px;
 }
 .separator {
     width: 1px;
@@ -39,7 +41,7 @@
     border-radius: 10px;
     background-color: #414776;
     box-shadow: 0 4px 8px 0 black;
-    font-size: 14px;
+    font-size: 16px;
 }
 .boxSecondaryHeader{
     font-weight: bold;
@@ -48,7 +50,6 @@
     padding-bottom: 5px;
 }
 .boxHeaderCell{
-    flex: 1;
     margin: 10px;
 }
 .boxRow{
@@ -64,6 +65,13 @@
     flex: 1;
     margin: 3px;
 }
+.boxCellCaption{
+    margin: 3px;
+}
+.caption {
+    flex: 1;
+    margin: 3px;
+}
 .boxWithShadow{
     border-radius: 10px;
     border: 1px solid black;
@@ -73,10 +81,22 @@
     display: none;
 }
 .colorSettings{
-    width: 200px;
+    width: 160px;
+    margin: 6px;
 }
 .colorSetting{
     width: 100%;
     display: flex;
     flex-direction: row;
+}
+.menu {
+    width:200px;
+}
+.menuitem {
+    margin: 2px;
+    padding: 6px;
+    cursor: pointer;
+}
+p.menuitem:hover {
+  background-color: lightblue;
 }
