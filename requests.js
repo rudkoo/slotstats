@@ -3,7 +3,7 @@
 var recordingActive
 
 (() => {
-    recordingActive = true
+    recordingActive = false
     class HttpRequest {
         constructor(data) {
             this.method = data.method;
@@ -482,6 +482,7 @@ var recordingActive
                     processor.isFunMode = e.mode.match(/demo/i) != null
                     processor.gameId = e.gameId
                     processor.gameName = e.gameName
+                    window.postMessage({ msgId: "registerGame", gameId: e.gameId, gameName: e.gameName, providerName: processor.provider }, "*")
                 })
             }
         }
@@ -520,9 +521,7 @@ var recordingActive
         processRequest(httpRequest) {
             let requestParams = new URLSearchParams(httpRequest.body);
             
-            if (httpRequest.url.endsWith("gameLaunch")) {
-                window.postMessage({ msgId: "registerGame", gameId: this.gameId, gameName: this.gameName, providerName: this.provider }, "*")
-            } else if (httpRequest.url.endsWith("bet")) {
+            if (httpRequest.url.endsWith("bet")) {
                 let request = JSON.parse(httpRequest.body)
                 let response = JSON.parse(this.decoder.decode(httpRequest.response))
                 let spinToBeSaved = null

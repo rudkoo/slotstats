@@ -431,6 +431,8 @@ chrome.tabs.onActivated.addListener(
             recordPromise.then((registeredGame) => {
                 if (registeredGame) {
                     activeGameChanged(registeredGame.gameId, registeredGame.gameName, registeredGame.providerName)
+                } else {
+                    activeGameChanged(null, null, null)
                 }
             })
         }

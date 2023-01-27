@@ -204,6 +204,16 @@ function loadGameInfo(gameId, gameName, providerName) {
             $("#boughtBonusesText").text(" - ")
             $("#freeBonusesText").text(" - ")
         }
+    } else if (gameId == null) {
+        $("#gameNameText").text("")
+        $("#providerNameText").text("")
+        $("#maxWinText").text(" - ")
+        $("#maxXText").text(" - ")
+        $("#maxAvgBonusXText").text(" - ")
+        $("#personalRTPText").text(" - ")
+        $("#totalSpinsText").text(" - ")
+        $("#boughtBonusesText").text(" - ")
+        $("#freeBonusesText").text(" - ")
     }
 }
 
