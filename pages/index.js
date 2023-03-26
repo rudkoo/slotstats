@@ -12,6 +12,7 @@ var isSessionPage = false
 var activeGameId = null
 var activeGameName = null
 var activeProviderName = null
+var activeGameMaxPotential= null
 var responseCounter = 1
 var debugLogging = false
 
@@ -22,7 +23,7 @@ function messageHandler(msg, sender, sendResponse) {
     }
     
     if (msg.id == "activeGameChanged") {
-        activeGameChanged(msg.gameId, msg.gameName, msg.providerName)
+        activeGameChanged(msg.gameId, msg.gameName, msg.providerName, msg.maxPotential)
     } else if (msg.id == "updateRecord") {
         updateRecord(msg.gameStats, msg.isFunGame, msg.sessionId)
     } else if (msg.id == "updateBetRecord") {
@@ -161,10 +162,11 @@ function calculatePersonalRTP(betStats) {
     return size > 0 ? (sum / size * 100).toFixed(2) : 0
 }
 
-function loadGameInfo(gameId, gameName, providerName) {
+function loadGameInfo(gameId, gameName, providerName, maxPotential) {
     if (gameId && $("#gameNameText")) {
         $("#gameNameText").text(gameName.toUpperCase())
         $("#providerNameText").text(providerName.toUpperCase())
+        $("#maxPotentialText").text(maxPotential != null ? (maxPotential + " X") : " - ")
         
         let mostValuableWin = null
         let isFunRecord = false
@@ -183,15 +185,15 @@ function loadGameInfo(gameId, gameName, providerName) {
         }
         
         if (gameId in gameStats) {
-            $("#maxXText").text(gameStats[gameId].max_x + " (" + gameStats[gameId].max_x_bet + " " + gameStats[gameId].max_x_currency + ")")
-            $("#maxAvgBonusXText").text(gameStats[gameId].avg_x)
+            $("#maxXText").text(gameStats[gameId].max_x + " X (" + gameStats[gameId].max_x_bet + " " + gameStats[gameId].max_x_currency + ")")
+            $("#maxAvgBonusXText").text(gameStats[gameId].avg_x + " X")
             $("#personalRTPText").text(calculatePersonalRTP(gameBetStats[gameId]))
             $("#totalSpinsText").text(gameStats[gameId].spin_count)
             $("#boughtBonusesText").text(gameStats[gameId].bought_bonus_count)
             $("#freeBonusesText").text(gameStats[gameId].free_bonus_count)
         } else if (gameId in funGameStats) {
-            $("#maxXText").text(funGameStats[gameId].max_x + " (" + funGameStats[gameId].max_x_bet + " " + FUN_PREFIX + funGameStats[gameId].max_x_currency + ")")
-            $("#maxAvgBonusXText").text(funGameStats[gameId].avg_x)
+            $("#maxXText").text(funGameStats[gameId].max_x + " X (" + funGameStats[gameId].max_x_bet + " " + FUN_PREFIX + funGameStats[gameId].max_x_currency + ")")
+            $("#maxAvgBonusXText").text(funGameStats[gameId].avg_x + " X")
             $("#personalRTPText").text(calculatePersonalRTP(funGameBetStats[gameId]))
             $("#totalSpinsText").text(funGameStats[gameId].spin_count)
             $("#boughtBonusesText").text(funGameStats[gameId].bought_bonus_count)
@@ -217,11 +219,12 @@ function loadGameInfo(gameId, gameName, providerName) {
     }
 }
 
-function activeGameChanged(gameId, gameName, providerName) {
+function activeGameChanged(gameId, gameName, providerName, maxPotential) {
     activeGameId = gameId
     activeGameName = gameName
     activeProviderName = providerName
-    loadGameInfo(gameId, gameName, providerName)
+    activeGameMaxPotential = maxPotential
+    loadGameInfo(gameId, gameName, providerName, maxPotential)
 }
 
 function reloadRecords(data, funData) {
@@ -251,7 +254,7 @@ function reloadRecords(data, funData) {
     for (let record of funData) {
         funGameStats[record.gameId] = record
     }
-    loadGameInfo(activeGameId, activeGameName, activeProviderName)
+    loadGameInfo(activeGameId, activeGameName, activeProviderName, activeGameMaxPotential)
 }
 
 function reloadBetRecords(data, funData) {
@@ -263,7 +266,7 @@ function reloadBetRecords(data, funData) {
     for (let record of funData) {
         updateBetRecord(record, true, null)
     }
-    loadGameInfo(activeGameId, activeGameName, activeProviderName)
+    loadGameInfo(activeGameId, activeGameName, activeProviderName, activeGameMaxPotential)
 }
 
 function updateOverallTable() {
@@ -321,7 +324,7 @@ function updateRecord(updatedGameStats, isFunGame, sessionId) {
         gameStats[updatedGameStats.gameId] = updatedGameStats
     }
     if (!sessionId && activeGameId == updatedGameStats.gameId) {
-        loadGameInfo(activeGameId, activeGameName, activeProviderName)
+        loadGameInfo(activeGameId, activeGameName, activeProviderName, activeGameMaxPotential)
     }
 }
 
@@ -343,7 +346,7 @@ function updateBetRecord(betStats, isFunGame, sessionId) {
         row.child(format(row.data(), betStatsData[row.data().gameId]))
     }
     if (!sessionId && activeGameId == betStats.gameId) {
-        loadGameInfo(activeGameId, activeGameName, activeProviderName)
+        loadGameInfo(activeGameId, activeGameName, activeProviderName, activeGameMaxPotential)
     }
 }
 

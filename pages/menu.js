@@ -9,7 +9,7 @@ document.addEventListener("DOMContentLoaded", () => {
         window.close()
     })
     document.getElementById("menuitem.active_v").addEventListener("click", () => {
-        chrome.windows.create({ url: chrome.runtime.getURL("pages/active_v.html"), type: "popup", width: 400, height: 350 });
+        chrome.windows.create({ url: chrome.runtime.getURL("pages/active_v.html"), type: "popup", width: 400, height: 380 });
         window.close()
     })
     document.getElementById("menuitem.active_h").addEventListener("click", () => {

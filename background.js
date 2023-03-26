@@ -3,6 +3,7 @@ let db = null;
 let lastActiveGame = null
 let lastActiveGameName = null
 let lastActiveProviderName = null
+let lastActiveGameMaxPotential = null
 let debugLogging = false
 
 function createDatabase() {
@@ -74,7 +75,7 @@ function createDatabase() {
     
     request.onsuccess = function (event) {
         db = event.target.result;
-        console.log("DB OPENED.");
+        console.log("DB OPENED. " + new Date().toString());
         
         db.onerror = function (event) {
             console.log("FAILED TO OPEN DB.")
@@ -275,20 +276,24 @@ function endCurrentSession() {
     // TODO
 }
 
-function registerGame(tabId, gameId, gameName, providerName) {
+function registerGame(tabId, gameId, gameName, providerName, maxPotential) {
     if (db) {
         const transaction = db.transaction("active_games", "readwrite");
         const objectStore = transaction.objectStore("active_games");
-        const updateRequest = objectStore.put({ tabId: tabId, gameId: gameId, gameName: gameName, providerName: providerName });
+        const updateRequest = objectStore.put({ tabId: tabId, gameId: gameId, gameName: gameName, providerName: providerName, maxPotential: maxPotential });
         updateRequest.onsuccess = () => {}
     }
 }
 
-function activeGameChanged(activeGameId, activeGameName, activeProviderName) {
+function activeGameChanged(activeGameId, activeGameName, activeProviderName, activeGameMaxPotential) {
     lastActiveGame = activeGameId
     lastActiveGameName = activeGameName
     lastActiveProviderName = activeProviderName
-    chrome.runtime.sendMessage({ id: "activeGameChanged", gameId: activeGameId, gameName: activeGameName, providerName: activeProviderName })
+    lastActiveGameMaxPotential = activeGameMaxPotential
+    if (debugLogging) {
+        console.log("[Slotstats][activeGameChanged]: " + activeGameId + ", " + activeGameName + ", " + activeProviderName + ", " + activeGameMaxPotential)
+    }
+    chrome.runtime.sendMessage({ id: "activeGameChanged", gameId: activeGameId, gameName: activeGameName, providerName: activeProviderName, maxPotential: activeGameMaxPotential })
 }
 
 function roundToFixed(number) {
@@ -403,6 +408,11 @@ function saveSpinToTable(spin, statsTable, betStatsTable, sessionId = null) {
 }
 
 function saveSpin(spin) {
+    if (!db) {
+        createDatabase();
+        setTimeout(()=>{ saveSpin(spin); }, 1000)
+        return;
+    }
     
     if (spin.isFunGame) {
         saveSpinToTable(spin, "fun_game_stats", "fun_game_bet_stats")
@@ -430,9 +440,7 @@ chrome.tabs.onActivated.addListener(
         if (recordPromise) {
             recordPromise.then((registeredGame) => {
                 if (registeredGame) {
-                    activeGameChanged(registeredGame.gameId, registeredGame.gameName, registeredGame.providerName)
-                } else {
-                    activeGameChanged(null, null, null)
+                    activeGameChanged(registeredGame.gameId, registeredGame.gameName, registeredGame.providerName, registeredGame.maxPotential)
                 }
             })
         }
@@ -445,6 +453,25 @@ chrome.tabs.onRemoved.addListener(
     }
 )
 
+chrome.windows.onFocusChanged.addListener(
+    async function (windowId) {
+        if (windowId != chrome.windows.WINDOW_ID_NONE) {
+            let queryOptions = { active: true, lastFocusedWindow: true };
+            let [tab] = await chrome.tabs.query(queryOptions);
+            if (tab) {
+                let recordPromise = getRecord("active_games", tab.id)
+                if (recordPromise) {
+                    recordPromise.then((registeredGame) => {
+                        if (registeredGame) {
+                            activeGameChanged(registeredGame.gameId, registeredGame.gameName, registeredGame.providerName, registeredGame.maxPotential)
+                        }
+                    })
+                }
+            }
+        }
+    }
+)
+
 chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
     
     if (debugLogging) {
@@ -452,11 +479,17 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
     }
     
     if (msg.id === 'registerGame') {
-        registerGame(sender.tab.id, msg.gameId, msg.gameName, msg.providerName)
-        activeGameChanged(msg.gameId, msg.gameName, msg.providerName)
+        if (debugLogging) {
+            console.log("[Slotstats][registerGame]: " + msg.gameId + ", " + msg.gameName + ", " + msg.providerName + ", " + msg.maxPotential)
+        }
+        registerGame(sender.tab.id, msg.gameId, msg.gameName, msg.providerName, msg.maxPotential)
+        activeGameChanged(msg.gameId, msg.gameName, msg.providerName, msg.maxPotential)
     } else if (msg.id === 'registerStatsPage') {
+        if (debugLogging) {
+            console.log("[Slotstats][registerStatsPage]: " + lastActiveGame + ", " + lastActiveGameName + ", " + lastActiveProviderName + ", " + lastActiveGameMaxPotential)
+        }
         if (lastActiveGame) {
-            chrome.runtime.sendMessage({ id: "activeGameChanged", gameId: lastActiveGame, gameName: lastActiveGameName, providerName: lastActiveProviderName })
+            chrome.runtime.sendMessage({ id: "activeGameChanged", gameId: lastActiveGame, gameName: lastActiveGameName, providerName: lastActiveProviderName, maxPotential: lastActiveGameMaxPotential })
         }
     } else if (msg.id === 'saveSpin') {
         saveSpin(msg.data)

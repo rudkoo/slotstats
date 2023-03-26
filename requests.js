@@ -182,8 +182,10 @@ var recordingActive
         }
         
         isValidProcessor(httpRequest) {
+            //window.postMessage({ msgId: "log", message: "[isValidProcessor]: " + httpRequest.url }, "*")
             for (let pattern of this.uriPatterns) {
                 if (httpRequest.url.match(pattern)) {
+                    //window.postMessage({ msgId: "log", message: "[isValidProcessor]: matched " + pattern }, "*")
                     return true;
                 }
             }
@@ -365,11 +367,14 @@ var recordingActive
             let action = requestParams.get("action")
             let gameId = requestParams.get("symbol")
             let gameInfo = pragmaticSlots[gameId]
-            let gameName = gameInfo ? gameInfo["name"] : gameId
+            let gameName = gameInfo ? gameInfo["name"] : document.title
             let spinToBeSaved = null
             
             if (action == "doInit") {
-                window.postMessage({ msgId: "registerGame", gameId: gameId, gameName: gameName, providerName: this.provider }, "*")
+                setTimeout(()=>{
+                    let maxPotential = window.XT.GetInt("WinLimit_TotalBetMultiplier");
+                    window.postMessage({ msgId: "registerGame", gameId: gameId, gameName: gameName, providerName: this.provider, maxPotential: maxPotential }, "*")
+                }, 500)
             } else if (action == "doSpin" || action == "doBonus") {
                 let isBonus = params.has("fsmul") || params.has("fs_total") || params.has("rsb_c")
                 let spin = new Spin()
@@ -401,9 +406,9 @@ var recordingActive
                         this.currentSpin.win = totalWin
                         this.currentSpin.multiplier = this.currentSpin.win / this.currentSpin.baseBet
                     }
-                    if (requestParams.has("pur") && gameInfo) {
+                    if (requestParams.has("pur")) {
                         let bonusIndex = parseInt(requestParams.get("pur"))
-                        this.currentSpin.bet = gameInfo["bonus_buy"][bonusIndex] * this.currentSpin.baseBet
+                        this.currentSpin.bet = window.XT.GetObject(Vars.FeaturePurchase).purchaseCosts[bonusIndex] * (window.CoinManager.GetNextBet() * 1E3) / 1E3
                     }
                 } else {
                     spin.bet = spin.baseBet
@@ -567,7 +572,35 @@ var recordingActive
         }
     }
     
-    Injector.processors = [ new PragmaticV3RequestProcessor(), new PragmaticV4RequestProcessor(), new YggdrasilRequestProcessor(), new HacksawGamingProcessor() ]
+    class RelaxGamingProcessor extends RequestProcessor {
+        constructor() {
+            super()
+            this.uriPatterns = [".*://.*.relaxg.(net|com)/.*/casino/games/.*", ".*://.*.relaxg.com/casino/launcher.html.*"]
+            // https://cf-iomeu-cdn.relaxg.com/capi/2.0/casino/games/getlauncherconfig?gameref=netgains
+            //.*://.*.api.relaxg.com      /capi/2.0/casino/games/getclientconfig?gameref=netgains&jurisdiction=GG&partnerid=636&versionstring=1.0.4
+            //window.config.gameDetails.highestWin
+            //https://cf-iomeu-cdn.relaxg.com/casino/launcher.html?channel=web&gameid=netgains&homeurl=https%3A%2F%2Ffairspin.io%3A443%2Fcasino%2FGAMES&jurisdiction=GG&lang=en_US&moneymode=fun&partner=hubb2beu&partnerid=636&apex=1&fullscreen=false
+            this.provider = "Relax Gaming"
+            this.currentSpin = null
+            this.currency = null
+            this.isFunMode = true
+            this.gameId = null
+            this.gameName = null
+            this.featureBuyData = {}
+        }
+        
+        processRequest(httpRequest) {
+            let request = httpRequest.url.substring(0, httpRequest.url.search("\\?"))
+            if (request.endsWith("getlauncherconfig")) {
+                let requestParams = new URLSearchParams(httpRequest.url.substring(httpRequest.url.search("\\?") + 1));
+                let response = JSON.parse(httpRequest.response)
+                this.gameName = response.fullname
+                window.postMessage({ msgId: "registerGame", gameId: requestParams.get("gameref"), gameName: this.gameName, providerName: this.provider }, "*")
+            }
+        }
+    }
+    
+    Injector.processors = [ new PragmaticV3RequestProcessor(), new PragmaticV4RequestProcessor(), new YggdrasilRequestProcessor(), new HacksawGamingProcessor(), new RelaxGamingProcessor() ]
     const xhrInjector = new XMLHttpRequestInjector();
     const fetchInjector = new FetchInjector();
     xhrInjector.inject();

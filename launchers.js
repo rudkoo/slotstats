@@ -43,8 +43,22 @@ class YggdrasilLaunchProcessor extends LaunchProcessor {
     }
 }
 
+class RelaxGamingLaunchProcessor extends LaunchProcessor {
+    constructor() {
+        super()
+        this.provider = "Relax Gaming"
+        this.uriPatterns = [".*://.*.relaxg.(net|com)/casino/games/.*"]
+        this.timerId = null
+        this.gameId = null
+    }
+    
+    processPage() {
+        console.log(window.config)
+    }
+}
+
 (() => {
-    LaunchProcessor.processors.push( new YggdrasilLaunchProcessor() )
+    LaunchProcessor.processors.push( new YggdrasilLaunchProcessor(), new RelaxGamingLaunchProcessor() )
     
     for (let processor of LaunchProcessor.processors) {
         if (processor.isValidProcessor(document.URL)) {

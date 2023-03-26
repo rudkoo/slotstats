@@ -4,7 +4,8 @@ var debugLogging = false
 
 function messageHandler(event) {
     if (event.data.msgId == "registerGame") {
-        chrome.runtime.sendMessage({ id: "registerGame", gameId: event.data.gameId, gameName: event.data.gameName, providerName: event.data.providerName }, function() {});
+        chrome.runtime.sendMessage({ id: "registerGame", gameId: event.data.gameId, gameName: event.data.gameName,
+            providerName: event.data.providerName, maxPotential: event.data.maxPotential }, function() {});
     }
     else if (event.data.msgId == "saveSpin") {
         if (debugLogging) {
@@ -16,7 +17,7 @@ function messageHandler(event) {
         chrome.runtime.sendMessage({ id: "recordResponse", data: event.data.record, spin: event.data.spin }, function() {});
     }
     else if (event.data.msgId == "log") {
-        console.log("[Slotstats]:" + event.data.message)
+        console.log("[Slotstats]: " + event.data.message)
     }
 }
 
@@ -51,6 +52,12 @@ function interceptData() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+    if (debugLogging) {
+        console.log("[Slotstats]: injecting scripts to " + document.location.href)
+    }
     window.addEventListener("message", messageHandler);
     interceptData();
+    if (debugLogging) {
+        console.log("[Slotstats]: scripts injected")
+    }
 });
