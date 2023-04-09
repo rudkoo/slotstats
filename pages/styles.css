@@ -1,7 +1,8 @@
 
 .gameInfo{
 	display: table;
-	width: 100%;
+	width: 92%;
+    margin: 15px;
 }
 .greenbox{
 	padding: 50px;

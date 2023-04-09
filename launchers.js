@@ -46,14 +46,18 @@ class YggdrasilLaunchProcessor extends LaunchProcessor {
 class RelaxGamingLaunchProcessor extends LaunchProcessor {
     constructor() {
         super()
-        this.provider = "Relax Gaming"
-        this.uriPatterns = [".*://.*.relaxg.(net|com)/casino/games/.*"]
         this.timerId = null
-        this.gameId = null
+        this.provider = "Relax Gaming"
+        this.uriPatterns = [".*://.*.relaxg.(net|com)/casino/games/.*", ".*://d2drhksbtcqozo.cloudfront.net/casino/.*"]
     }
     
     processPage() {
-        console.log(window.config)
+        this.timerId = setInterval(() => {
+            if (window.config && window.config.GAME_CONFIG && window.config.gameDetails) {
+                window.postMessage({ msgId: "registerGame", gameId: window.config.GAME_CONFIG.GAME_ID, providerName: this.provider, maxPotential: window.config.gameDetails.highestWin }, "*")
+                clearInterval(this.timerId)
+            }
+        }, 1000)
     }
 }
 

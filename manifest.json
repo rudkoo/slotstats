@@ -25,7 +25,10 @@
             "*://*.yggdrasilgaming.com/*",
             "*://*.hacksawgaming.com/*",
             "*://*.relaxg.com/*",
-            "*://*.relaxg.net/*"
+            "*://*.relaxg.net/*",
+            "*://*.sidetechnology.co/*",
+            "*://d2drhksbtcqozo.cloudfront.net/*",
+            "*://*.pushgaming.com/*"
         ]
     }],
     
@@ -41,7 +44,11 @@
             "*://*.relaxg.net/*/*/casino/games/*",
             "*://*.relaxg.com/*/*/casino/games/*",
             "*://*.relaxg.com/casino/games/*",
-            "*://*.relaxg.com/casino/*"
+            "*://*.relaxg.com/casino/*",
+            "*://d2drhksbtcqozo.cloudfront.net/casino/*",
+            "*://*.sidetechnology.co/hive/b2c/game/*/*/index.html*",
+            "*://*.pushgaming.com/hive/b2c/game/*/*/index.html*",
+            "*://*.pushgaming.com/mesh/b2c/*/*/launch*"
         ],
         "run_at": "document_start",
         "all_frames": true,

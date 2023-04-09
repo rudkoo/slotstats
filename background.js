@@ -277,6 +277,25 @@ function endCurrentSession() {
 }
 
 function registerGame(tabId, gameId, gameName, providerName, maxPotential) {
+    let recordPromise = getRecord("active_games", tabId)
+    if (recordPromise) {
+        recordPromise.then((registeredGame) => {
+            if (registeredGame) {
+                if (!gameName) {
+                    gameName = registeredGame.gameName
+                }
+                if (!maxPotential) {
+                    maxPotential = registeredGame.maxPotential
+                }
+            }
+            saveActiveGame(tabId, gameId, gameName, providerName, maxPotential)
+        })
+    } else {
+        saveActiveGame(tabId, gameId, gameName, providerName, maxPotential)
+    }
+}
+
+function saveActiveGame(tabId, gameId, gameName, providerName, maxPotential) {
     if (db) {
         const transaction = db.transaction("active_games", "readwrite");
         const objectStore = transaction.objectStore("active_games");
@@ -286,14 +305,26 @@ function registerGame(tabId, gameId, gameName, providerName, maxPotential) {
 }
 
 function activeGameChanged(activeGameId, activeGameName, activeProviderName, activeGameMaxPotential) {
-    lastActiveGame = activeGameId
-    lastActiveGameName = activeGameName
-    lastActiveProviderName = activeProviderName
-    lastActiveGameMaxPotential = activeGameMaxPotential
-    if (debugLogging) {
-        console.log("[Slotstats][activeGameChanged]: " + activeGameId + ", " + activeGameName + ", " + activeProviderName + ", " + activeGameMaxPotential)
+    if (lastActiveGame != activeGameId) {
+        lastActiveGame = null
+        lastActiveGameName = ""
+        lastActiveProviderName = ""
+        lastActiveGameMaxPotential = null
     }
-    chrome.runtime.sendMessage({ id: "activeGameChanged", gameId: activeGameId, gameName: activeGameName, providerName: activeProviderName, maxPotential: activeGameMaxPotential })
+    lastActiveGame = activeGameId
+    if (activeGameName != null) {
+        lastActiveGameName = activeGameName
+    }
+    if (activeProviderName != null) {
+        lastActiveProviderName = activeProviderName
+    }
+    if (activeGameMaxPotential != null) {
+        lastActiveGameMaxPotential = activeGameMaxPotential
+    }
+    if (debugLogging) {
+        console.log("[Slotstats][activeGameChanged]: " + lastActiveGame + ", " + lastActiveGameName + ", " + lastActiveProviderName + ", " + lastActiveGameMaxPotential)
+    }
+    chrome.runtime.sendMessage({ id: "activeGameChanged", gameId: lastActiveGame, gameName: lastActiveGameName, providerName: lastActiveProviderName, maxPotential: lastActiveGameMaxPotential })
 }
 
 function roundToFixed(number) {
@@ -384,15 +415,15 @@ function saveSpinToTable(spin, statsTable, betStatsTable, sessionId = null) {
                 }
             }
             if (spin.win > betStats.max_win) {
-                betStats.max_win = spin.win
-                betStats.max_win_bet = spin.baseBet
+                betStats.max_win = roundToFixed(spin.win)
+                betStats.max_win_bet = roundToFixed(spin.baseBet)
             }
             if (spin.isBonus) {
-                betStats.total_bonus_buys += spin.bet
-                betStats.total_bonus_wins += spin.win
+                betStats.total_bonus_buys += roundToFixed(spin.bet)
+                betStats.total_bonus_wins += roundToFixed(spin.win)
             }
-            betStats.total_bets += spin.bet
-            betStats.total_wins += spin.win
+            betStats.total_bets += roundToFixed(spin.bet)
+            betStats.total_wins += roundToFixed(spin.win)
             betStats.profit_loss = roundToFixed(betStats.total_wins - betStats.total_bets)
             
             const transaction = db.transaction(betStatsTable, "readwrite");

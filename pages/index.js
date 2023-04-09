@@ -71,10 +71,10 @@ function hexToRgbA(hex){
 }
 
 function updateColor() {
-    let backgroundColorPicker = document.getElementById("backgroundColor")
+    let windowColorPicker = document.getElementById("windowColor")
     let elements = document.getElementsByClassName("boxHeader")
-    let backgroundColor = backgroundColorPicker.value
-    let rgb = hexToRgbA(backgroundColor)
+    let windowColor = windowColorPicker.value
+    let rgb = hexToRgbA(windowColor)
     let secondaryColor = "#"
     
     for (let i = 0; i < rgb.length; ++i) {
@@ -82,11 +82,11 @@ function updateColor() {
         secondaryColor += ("00" + rgb[i].toString(16)).slice(-2)
     }
     for (let element of elements) {
-        element.style.backgroundColor = backgroundColor
+        element.style.backgroundColor = windowColor
     }
     elements = document.getElementsByClassName("boxWithShadow")
     for (let element of elements) {
-        let image = 'linear-gradient(to bottom right, ' + backgroundColor + ', ' + secondaryColor + ')';
+        let image = 'linear-gradient(to bottom right, ' + windowColor + ', ' + secondaryColor + ')';
         element.style.backgroundImage = image
     }
 }
@@ -101,21 +101,31 @@ function updateFontColor() {
     }
 }
 
+function updateBackgroundColor() {
+    let backgroundColorPicker = document.getElementById("backgroundColor")
+    let backgroundColor = backgroundColorPicker.value
+    document.body.style.background = backgroundColor
+}
+
 function updateSettings(settings) {
     let fontColorPicker = document.getElementById("fontColor")
+    let windowColorPicker = document.getElementById("windowColor")
     let backgroundColorPicker = document.getElementById("backgroundColor")
     if (fontColorPicker && backgroundColorPicker) {
+        windowColorPicker.value = settings.windowColor
         backgroundColorPicker.value = settings.backgroundColor
         fontColorPicker.value = settings.fontColor
         updateColor()
         updateFontColor()
+        updateBackgroundColor()
     }
 }
 
 function saveSettings() {
+    let windowColorPicker = document.getElementById("windowColor")
     let fontColorPicker = document.getElementById("fontColor")
     let backgroundColorPicker = document.getElementById("backgroundColor")
-    let settings = { backgroundColor: backgroundColorPicker.value, fontColor: fontColorPicker.value }
+    let settings = { windowColor: windowColorPicker.value, backgroundColor: backgroundColorPicker.value, fontColor: fontColorPicker.value }
     chrome.runtime.sendMessage({ id: "saveSettings", settings: settings }, function() {});
 }
 
@@ -570,6 +580,7 @@ $(document).ready(function () {
         });
     }
     
+    let windowColorInput = document.getElementById("windowColor")
     let backgroundColorInput = document.getElementById("backgroundColor")
     let fontColorInput = document.getElementById("fontColor")
     let clearDbButton = document.getElementById("clearDb")
@@ -577,6 +588,10 @@ $(document).ready(function () {
     let createSessionButton = document.getElementById("createSession")
     let currentSession = document.getElementById("currentSession")
     
+    if (windowColorInput) {
+        windowColorInput.addEventListener("input", function() { updateColor() })
+        windowColorInput.addEventListener("change", function() { saveSettings() })
+    }
     if (backgroundColorInput) {
         backgroundColorInput.addEventListener("input", function() { updateColor() })
         backgroundColorInput.addEventListener("change", function() { saveSettings() })

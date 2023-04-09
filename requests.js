@@ -130,31 +130,35 @@ var recordingActive
     class FetchInjector extends Injector {
         inject() {
             const origFetch = window.fetch;
-            window.fetch = (url, data) => new Promise(((resolve, reject) => {
+            window.fetch = (url, data) => new Promise((resolve, reject) => {
                 origFetch(url, data).then((result => {
-                    result.text().then((text => {
-                        if (!data) {
-                            data = {};
-                        }
-                        const response = new Response(text, result);
-                        resolve(response);
-                        let method = data.method ? data.method : "GET";
-                        let headers = data.headers ? data.headers : {};
-                        const request = new HttpRequest({
-                            method: method,
-                            url: url,
-                            headers: headers,
-                            body: data.body,
-                            response: text
-                        });
-                        try {
-                            this.notifyWatchers(request)
-                        } catch (e) {
-                            window.postMessage({ msgId: "log", message: "Error: " + e.toString() }, "*")
-                        }
-                    })).catch((err => { reject(err) }))
+                    if (result.headers.has("Content-Type") && result.headers.get("Content-Type").match(/json/)) {
+                        result.text().then((text => {
+                            if (!data) {
+                                data = {};
+                            }
+                            const response = new Response(text, result);
+                            resolve(response);
+                            let method = data.method ? data.method : "GET";
+                            let headers = data.headers ? data.headers : {};
+                            const request = new HttpRequest({
+                                method: method,
+                                url: url,
+                                headers: headers,
+                                body: data.body,
+                                response: text
+                            });
+                            try {
+                                this.notifyWatchers(request)
+                            } catch (e) {
+                                window.postMessage({ msgId: "log", message: "Error: " + e.toString() }, "*")
+                            }
+                        })).catch((err => { reject(err) }))
+                    } else {
+                        resolve(result);
+                    }
                 })).catch((err => { reject(err) }))
-            }))
+            })
         }
     }
     
@@ -575,7 +579,7 @@ var recordingActive
     class RelaxGamingProcessor extends RequestProcessor {
         constructor() {
             super()
-            this.uriPatterns = [".*://.*.relaxg.(net|com)/.*/casino/games/.*", ".*://.*.relaxg.com/casino/launcher.html.*"]
+            this.uriPatterns = [".*://.*.relaxg.(net|com)/.*/casino/games/.*", ".*://.*.relaxg.com/casino/launcher.html.*", ".*://d2drhksbtcqozo.cloudfront.net/.*/casino/games/.*", ".*://.*.relaxg.net/game/.*"]
             // https://cf-iomeu-cdn.relaxg.com/capi/2.0/casino/games/getlauncherconfig?gameref=netgains
             //.*://.*.api.relaxg.com      /capi/2.0/casino/games/getclientconfig?gameref=netgains&jurisdiction=GG&partnerid=636&versionstring=1.0.4
             //window.config.gameDetails.highestWin
@@ -586,21 +590,130 @@ var recordingActive
             this.isFunMode = true
             this.gameId = null
             this.gameName = null
+            this.timerId = null
             this.featureBuyData = {}
         }
         
         processRequest(httpRequest) {
             let request = httpRequest.url.substring(0, httpRequest.url.search("\\?"))
+            window.postMessage({ msgId: "log", message: "processRequest" }, "*")
             if (request.endsWith("getlauncherconfig")) {
                 let requestParams = new URLSearchParams(httpRequest.url.substring(httpRequest.url.search("\\?") + 1));
                 let response = JSON.parse(httpRequest.response)
+                this.gameId = requestParams.get("gameref")
                 this.gameName = response.fullname
-                window.postMessage({ msgId: "registerGame", gameId: requestParams.get("gameref"), gameName: this.gameName, providerName: this.provider }, "*")
+                window.postMessage({ msgId: "registerGame", gameId: this.gameId, gameName: this.gameName, providerName: this.provider }, "*")
+            } else if (httpRequest.url.endsWith("play")) {
+                let response = JSON.parse(httpRequest.response)
+                let request = JSON.parse(httpRequest.body)
+                let spin = new Spin()
+                spin.provider = this.provider
+                spin.gameId = request.g
+                spin.gameName = this.gameName
+                spin.isFunGame = false
+                spin.currency = response.stats.currency
+                spin.baseBet = response.correspondingBa / 100
+                spin.bet = response.ba / 100
+                spin.win = response.win / 100
+                spin.multiplier = spin.win / spin.baseBet
+                spin.timestamp = new Date(request.timestamp).getTime()
+                spin.isFunGame = response.roundType == "demo"
+                spin.isFreeBonus = !response.buyFeature
+                spin.isBonus = response.buyFeature || (response.bonusRounds && response.bonusRounds.length > 0)
+                this.currentSpin = spin
+                
+            } else if (httpRequest.url.endsWith("gamefinished")) {
+                if (this.currentSpin) {
+                    window.postMessage({ msgId: "saveSpin", spin: this.currentSpin }, "*")
+                        
+                    if (recordingActive) {
+                        window.postMessage({ msgId: "recordResponse", record: httpRequest, spin: this.currentSpin }, "*")
+                    }
+                    this.currentSpin = null
+                }
             }
         }
     }
     
-    Injector.processors = [ new PragmaticV3RequestProcessor(), new PragmaticV4RequestProcessor(), new YggdrasilRequestProcessor(), new HacksawGamingProcessor(), new RelaxGamingProcessor() ]
+    class PushGamingProcessor extends RequestProcessor {
+        constructor() {
+            super()
+            this.uriPatterns = [".*://.*.sidetechnology.co/hive/b2c/game/.*/api/settings", ".*://.*.sidetechnology.co/hive/b2c/game/.*/api/actions-v2",
+                ".*://.*.pushgaming.com/hive/b2c/game/.*/api/settings", ".*://.*.pushgaming.com/hive/b2c/game/.*/api/actions", ".*://.*.pushgaming.com/hive/b2c/game/.*/api/actions-v2"]
+            this.provider = "Push Gaming"
+            this.currentSpin = null
+            this.currency = null
+            this.isFunMode = true
+            this.gameId = null
+            this.gameName = null
+            this.featureBuyData = {}
+        }
+        
+        processRequest(httpRequest) {
+            window.postMessage({ msgId: "log", spin: "processRequest" }, "*")
+            let request = httpRequest.url
+            if (request.endsWith("settings")) {
+                this.gameId = window[0].rgsGameId
+                this.gameName = document.title
+                let response = JSON.parse(httpRequest.response)
+                let maxPotential = null
+                this.currency = response.currencyCode
+                
+                if (response.betMultiplierWinCap) {
+                    maxPotential = response.betMultiplierWinCap / 100
+                }
+                
+                if (response.availableFeatures) {
+                    for (let bonus of response.availableFeatures) {
+                        this.featureBuyData[bonus.featureId] = bonus.featureCostMultiplier / 100
+                    }
+                }
+                
+                window.postMessage({ msgId: "registerGame", gameId: this.gameId, gameName: this.gameName, providerName: this.provider, maxPotential: maxPotential }, "*")
+            } else if (request.endsWith("actions") || request.endsWith("actions-v2") || request.endsWith("buy-feature")) {
+                
+                let response = JSON.parse(httpRequest.response)
+                let spinData = response
+                if (request.endsWith("actions-v2")) {
+                    spinData = response.actions[0]
+                }
+                
+                let spin = new Spin()
+                spin.provider = this.provider
+                spin.gameId = this.gameId
+                spin.gameName = this.gameName
+                spin.isFunGame = false
+                spin.currency = this.currency
+                spin.baseBet = spinData.totalBet / 100
+                spin.bet = spin.baseBet
+                spin.win = spinData.cumulativeWin / 100
+                spin.multiplier = spin.win / spin.baseBet
+                spin.timestamp = new Date(spinData.timestamp).getTime()
+                
+                let queryParams = new URLSearchParams(document.location.search)
+                if (queryParams.has("mode") && queryParams.get("mode") == "demo") {
+                    spin.isFunGame = true
+                }
+                
+                if (request.endsWith("buy-feature")) {
+                    spin.bet = spinData.featureCost
+                    spin.isBonus = true
+                    spin.isFreeBonus = false
+                } else if (spinData.steps[spinData.steps.length - 1].totalFreeSpins) {
+                    spin.isBonus = true
+                    spin.isFreeBonus = true
+                }
+                
+                window.postMessage({ msgId: "saveSpin", spin: spin }, "*")
+                    
+                if (recordingActive) {
+                    window.postMessage({ msgId: "recordResponse", record: httpRequest, spin: spin }, "*")
+                }
+            }
+        }
+    }
+    
+    Injector.processors = [ new PragmaticV3RequestProcessor(), new PragmaticV4RequestProcessor(), new YggdrasilRequestProcessor(), new HacksawGamingProcessor(), new RelaxGamingProcessor(), new PushGamingProcessor() ]
     const xhrInjector = new XMLHttpRequestInjector();
     const fetchInjector = new FetchInjector();
     xhrInjector.inject();
