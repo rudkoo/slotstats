@@ -580,10 +580,6 @@ var recordingActive
         constructor() {
             super()
             this.uriPatterns = [".*://.*.relaxg.(net|com)/.*/casino/games/.*", ".*://.*.relaxg.com/casino/launcher.html.*", ".*://d2drhksbtcqozo.cloudfront.net/.*/casino/games/.*", ".*://.*.relaxg.net/game/.*"]
-            // https://cf-iomeu-cdn.relaxg.com/capi/2.0/casino/games/getlauncherconfig?gameref=netgains
-            //.*://.*.api.relaxg.com      /capi/2.0/casino/games/getclientconfig?gameref=netgains&jurisdiction=GG&partnerid=636&versionstring=1.0.4
-            //window.config.gameDetails.highestWin
-            //https://cf-iomeu-cdn.relaxg.com/casino/launcher.html?channel=web&gameid=netgains&homeurl=https%3A%2F%2Ffairspin.io%3A443%2Fcasino%2FGAMES&jurisdiction=GG&lang=en_US&moneymode=fun&partner=hubb2beu&partnerid=636&apex=1&fullscreen=false
             this.provider = "Relax Gaming"
             this.currentSpin = null
             this.currency = null
@@ -596,7 +592,6 @@ var recordingActive
         
         processRequest(httpRequest) {
             let request = httpRequest.url.substring(0, httpRequest.url.search("\\?"))
-            window.postMessage({ msgId: "log", message: "processRequest" }, "*")
             if (request.endsWith("getlauncherconfig")) {
                 let requestParams = new URLSearchParams(httpRequest.url.substring(httpRequest.url.search("\\?") + 1));
                 let response = JSON.parse(httpRequest.response)
@@ -650,7 +645,6 @@ var recordingActive
         }
         
         processRequest(httpRequest) {
-            window.postMessage({ msgId: "log", spin: "processRequest" }, "*")
             let request = httpRequest.url
             if (request.endsWith("settings")) {
                 this.gameId = window[0].rgsGameId
@@ -699,7 +693,7 @@ var recordingActive
                     spin.bet = spinData.featureCost
                     spin.isBonus = true
                     spin.isFreeBonus = false
-                } else if (spinData.steps[spinData.steps.length - 1].totalFreeSpins) {
+                } else if (spinData.steps[spinData.steps.length - 1].totalFreeSpins || spinData.steps[0].freeSpinsAwarded) {
                     spin.isBonus = true
                     spin.isFreeBonus = true
                 }
