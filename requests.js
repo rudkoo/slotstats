@@ -454,7 +454,8 @@ var recordingActive
         
         constructor() {
             super()
-            this.uriPatterns = [".*://.*.pragmaticplay.net/gs2c/v3/gameService.*", ".*://.*.pragmaticplay.net/gs2c/ge/v3/gameService.*"]
+            this.uriPatterns = [".*://.*.pragmaticplay.net/gs2c/v3/gameService.*", ".*://.*.pragmaticplay.net/gs2c/ge/v3/gameService.*",
+                ".*://.*.ppgames.net/gs2c/v3/gameService.*", ".*://.*.ppgames.net/gs2c/ge/v3/gameService.*"]
         }
     }
     
@@ -462,7 +463,8 @@ var recordingActive
         
         constructor() {
             super()
-            this.uriPatterns = [".*://.*.pragmaticplay.net/gs2c/v4/gameService.*", ".*://.*.pragmaticplay.net/gs2c/ge/v4/gameService.*"]
+            this.uriPatterns = [".*://.*.pragmaticplay.net/gs2c/v4/gameService.*", ".*://.*.pragmaticplay.net/gs2c/ge/v4/gameService.*",
+                ".*://.*.ppgames.net/gs2c/v4/gameService.*", ".*://.*.ppgames.net/gs2c/ge/v4/gameService.*"]
         }
     }
     

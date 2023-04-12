@@ -22,6 +22,7 @@
         "resources": ["requests.js", "slots.js", "currencies.js", "launchers.js"],
         "matches": [
             "*://*.pragmaticplay.net/*",
+            "*://*.ppgames.net/*",
             "*://*.yggdrasilgaming.com/*",
             "*://*.hacksawgaming.com/*",
             "*://*.relaxg.com/*",
@@ -37,6 +38,8 @@
         "matches": [
             "*://*.pragmaticplay.net/gs2c/html5Game.do*",
             "*://*.pragmaticplay.net/gs2c/common/games-html5/games/vs/*/*.html*",
+            "*://*.ppgames.net/gs2c/html5Game.do*",
+            "*://*.ppgames.net/gs2c/common/games-html5/games/vs/*/*.html*",
             "*://*.yggdrasilgaming.com/slots/*/*",
             "*://*.yggdrasilgaming.com/app/*/*",
             "*://*.yggdrasilgaming.com/init/launchClient.html*",
