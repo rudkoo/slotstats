@@ -35,7 +35,7 @@ var recordingActive
                     try {
                         this.notifyWatchers(request);
                     } catch (e) {
-                        window.postMessage({ msgId: "log", message: "Error: " + e.toString() }, "*")
+                        window.postMessage({ msgId: "log", message: "Error: " + e.toString() + "\n" + e.stack  }, "*")
                     }
                 };
             
@@ -151,7 +151,7 @@ var recordingActive
                             try {
                                 this.notifyWatchers(request)
                             } catch (e) {
-                                window.postMessage({ msgId: "log", message: "Error: " + e.toString() }, "*")
+                                window.postMessage({ msgId: "log", message: "Error: " + e.toString() + "\n" + e.stack }, "*")
                             }
                         })).catch((err => { reject(err) }))
                     } else {
@@ -380,7 +380,7 @@ var recordingActive
                     window.postMessage({ msgId: "registerGame", gameId: gameId, gameName: gameName, providerName: this.provider, maxPotential: maxPotential }, "*")
                 }, 500)
             } else if (action == "doSpin" || action == "doBonus") {
-                let isBonus = params.has("fsmul") || params.has("fs_total") || params.has("rsb_c")
+                let isBonus = params.has("fsmul") || params.has("fs_total") || params.has("rsb_c") || requestParams.has("pur")
                 let spin = new Spin()
                 let continued = (params.has("rs_more") && parseInt(params.get("rs_more")) == 1) || params.has("rs_c") || params.has("rs_m") || params.has("rs_p") || params.has("rs_t") || params.has("end")
                 let totalWin = params.has("tw") ? parseFloat(params.get("tw").replace(",", "")) : parseFloat(params.get("w"))
@@ -412,7 +412,11 @@ var recordingActive
                     }
                     if (requestParams.has("pur")) {
                         let bonusIndex = parseInt(requestParams.get("pur"))
-                        this.currentSpin.bet = window.XT.GetObject(Vars.FeaturePurchase).purchaseCosts[bonusIndex] * (window.CoinManager.GetNextBet() * 1E3) / 1E3
+                        if (window.XT.GetObject(Vars.FeaturePurchase).purchaseCosts) {
+                            this.currentSpin.bet = window.XT.GetObject(Vars.FeaturePurchase).purchaseCosts[bonusIndex] * (window.CoinManager.GetNextBet() * 1E3) / 1E3
+                        } else if (gameInfo && gameInfo["bonus_buy"][bonusIndex]) {
+                            this.currentSpin.bet = gameInfo["bonus_buy"][bonusIndex] * this.currentSpin.baseBet
+                        }
                     }
                 } else {
                     spin.bet = spin.baseBet
@@ -480,6 +484,7 @@ var recordingActive
             this.gameId = null
             this.gameName = null
             this.featureBuyData = {}
+            this.maxPotential = null
             let processor = this
             
             if (window.hacksawCasino) {
@@ -487,13 +492,14 @@ var recordingActive
                     for (let bonus of e.featureBuyData) {
                         processor.featureBuyData[bonus.bonusGameId] = parseInt(bonus.betCostMultiplier)
                     }
+                    processor.maxPotential = parseInt(e.gameInfoData.maximumWinMultiplier)
                 })
                 window.hacksawCasino.PubSub.getChannel("casino").subscribe("initData", function(e) {
                     processor.currency = e.currency
                     processor.isFunMode = e.mode.match(/demo/i) != null
                     processor.gameId = e.gameId
                     processor.gameName = e.gameName
-                    window.postMessage({ msgId: "registerGame", gameId: e.gameId, gameName: e.gameName, providerName: processor.provider }, "*")
+                    window.postMessage({ msgId: "registerGame", gameId: e.gameId, gameName: e.gameName, providerName: processor.provider, maxPotential: processor.maxPotential }, "*")
                 })
             }
         }
@@ -510,6 +516,11 @@ var recordingActive
         isBonus(spinInfo) {
             let eventItem = this.getBonusEnterEvent(spinInfo)
             return eventItem != null
+        }
+        
+        isFreeBonus(spinInfo, request) {
+            let eventItem = this.getBonusEnterEvent(spinInfo)
+            return (eventItem && (!("buyBonus" in request.bets[0]) || eventItem.c.bonusFeatureWon != request.bets[0].buyBonus))
         }
         
         getBonusWin(spinInfo) {
@@ -552,7 +563,7 @@ var recordingActive
                     this.currentSpin.baseBet = baseBet
                     
                     if (this.currentSpin.isBonus) {
-                        this.currentSpin.isFreeBonus = !("buyBonus" in request.bets[0])
+                        this.currentSpin.isFreeBonus = this.isFreeBonus(response, request)
                     }
                 }
                 
@@ -581,7 +592,7 @@ var recordingActive
     class RelaxGamingProcessor extends RequestProcessor {
         constructor() {
             super()
-            this.uriPatterns = [".*://.*.relaxg.(net|com)/.*/casino/games/.*", ".*://.*.relaxg.com/casino/launcher.html.*", ".*://d2drhksbtcqozo.cloudfront.net/.*/casino/games/.*", ".*://.*.relaxg.net/game/.*"]
+            this.uriPatterns = [".*://.*.relaxg.(net|com)/.*/casino/games/.*", ".*://.*.relaxg.com/casino/launcher.html.*", ".*://d2drhksbtcqozo.cloudfront.net/.*/casino/games/.*", ".*://.*.relaxg.(net|com)/game/.*"]
             this.provider = "Relax Gaming"
             this.currentSpin = null
             this.currency = null
@@ -589,7 +600,6 @@ var recordingActive
             this.gameId = null
             this.gameName = null
             this.timerId = null
-            this.featureBuyData = {}
         }
         
         processRequest(httpRequest) {
