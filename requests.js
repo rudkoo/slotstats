@@ -626,9 +626,19 @@ var recordingActive
                 spin.multiplier = spin.win / spin.baseBet
                 spin.timestamp = new Date(request.timestamp).getTime()
                 spin.isFunGame = response.roundType == "demo"
-                spin.isFreeBonus = !response.buyFeature
+                spin.isFreeBonus = !(response.buyFeature || response.buySpin)
                 spin.isBonus = response.buyFeature || response.buySpin || (response.bonusRounds && response.bonusRounds.length > 0)
-                this.currentSpin = spin
+                
+                if (response.ended) {
+                    window.postMessage({ msgId: "saveSpin", spin: spin }, "*")
+                        
+                    if (recordingActive) {
+                        window.postMessage({ msgId: "recordResponse", record: httpRequest, spin: spin }, "*")
+                    }
+                    this.currentSpin = null
+                } else {
+                    this.currentSpin = spin
+                }
                 
             } else if (httpRequest.url.endsWith("gamefinished")) {
                 if (this.currentSpin) {
