@@ -5,6 +5,7 @@ let lastActiveGameName = null
 let lastActiveProviderName = null
 let lastActiveGameMaxPotential = null
 let debugLogging = false
+let registeredGames = {}
 
 function createDatabase() {
     const request = indexedDB.open('slotstatsDb', 1);
@@ -277,6 +278,10 @@ function endCurrentSession() {
 }
 
 function registerGame(tabId, gameId, gameName, providerName, maxPotential) {
+    if (!registeredGames[gameId]) {
+        registeredGames[gameId] = gameName
+    }
+    
     let recordPromise = getRecord("active_games", tabId)
     if (recordPromise) {
         recordPromise.then((registeredGame) => {
@@ -334,6 +339,17 @@ function roundToFixed(number) {
 function saveSpinToTable(spin, statsTable, betStatsTable, sessionId = null) {
     
     if (spin.gameId != "unknown") {
+        
+        if (debugLogging) {
+            console.log("Save spin:")
+            console.log(spin)
+        }
+        
+        if (!spin.bet || !spin.baseBet || (!spin.win && spin.win != 0)) {
+            console.log("Invalid spin")
+            return
+        }
+        
         let gameStatsKeys = spin.gameId
         if (sessionId) {
             gameStatsKeys = [sessionId, spin.gameId]
@@ -385,7 +401,7 @@ function saveSpinToTable(spin, statsTable, betStatsTable, sessionId = null) {
             }
             
             gameStats.last_played = spin.timestamp
-            gameStats.game_name = spin.gameName
+            gameStats.game_name = spin.gameName || registeredGames[spin.gameId]
             const transaction = db.transaction(statsTable, "readwrite");
             const objectStore = transaction.objectStore(statsTable);
             const updateRequest = objectStore.put(gameStats);

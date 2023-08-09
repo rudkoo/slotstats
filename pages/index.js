@@ -284,23 +284,31 @@ function updateOverallTable() {
         let overallData = {}
         for (let gameId in gameBetStats) {
             for (let currency in gameBetStats[gameId]) {
-                if (!overallData[currency]) {
-                    overallData[currency] = { "total_bets": 0, "total_wins": 0, "profit_loss": 0  }
-                }
-                overallData[currency]["total_bets"] += gameBetStats[gameId][currency].total_bets
-                overallData[currency]["total_wins"] += gameBetStats[gameId][currency].total_wins
-                overallData[currency]["profit_loss"] = overallData[currency]["total_wins"] - overallData[currency]["total_bets"]
+                try {
+                    if (!overallData[currency]) {
+                        overallData[currency] = { "total_bets": 0, "total_wins": 0, "profit_loss": 0  }
+                    }
+                    if (gameBetStats[gameId][currency].total_bets && gameBetStats[gameId][currency].total_wins) {
+                        overallData[currency]["total_bets"] += gameBetStats[gameId][currency].total_bets
+                        overallData[currency]["total_wins"] += gameBetStats[gameId][currency].total_wins
+                        overallData[currency]["profit_loss"] = overallData[currency]["total_wins"] - overallData[currency]["total_bets"]
+                    }
+                } catch (e) {}
             }
         }
         for (let gameId in funGameBetStats) {
             for (let currency in funGameBetStats[gameId]) {
                 let funCurrency = FUN_PREFIX + currency
-                if (!overallData[funCurrency]) {
-                    overallData[funCurrency] = { "total_bets": 0, "total_wins": 0, "profit_loss": 0  }
-                }
-                overallData[funCurrency]["total_bets"] += funGameBetStats[gameId][currency].total_bets
-                overallData[funCurrency]["total_wins"] += funGameBetStats[gameId][currency].total_wins
-                overallData[funCurrency]["profit_loss"] = overallData[funCurrency]["total_wins"] - overallData[funCurrency]["total_bets"]
+                try {
+                    if (!overallData[funCurrency]) {
+                        overallData[funCurrency] = { "total_bets": 0, "total_wins": 0, "profit_loss": 0  }
+                    }
+                    if (funGameBetStats[gameId][currency].total_bets && funGameBetStats[gameId][currency].total_wins) {
+                        overallData[funCurrency]["total_bets"] += funGameBetStats[gameId][currency].total_bets
+                        overallData[funCurrency]["total_wins"] += funGameBetStats[gameId][currency].total_wins
+                        overallData[funCurrency]["profit_loss"] = overallData[funCurrency]["total_wins"] - overallData[funCurrency]["total_bets"]
+                    }
+                } catch (e) {}
             }
         }
         let overallDataArray = []

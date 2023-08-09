@@ -18,6 +18,7 @@ var recordingActive
         inject() { }
         
         notifyWatchers(httpRequest) {
+            //window.postMessage({ msgId: "log", message: httpRequest }, "*")
             for (let processor of Injector.processors) {
                 if (processor.isValidProcessor(httpRequest)) {
                     processor.processRequest(httpRequest)
@@ -619,14 +620,14 @@ var recordingActive
                 spin.gameName = this.gameName
                 spin.isFunGame = false
                 spin.currency = response.stats.currency
-                spin.baseBet = response.correspondingBa / 100
+                spin.baseBet = (response.correspondingBa || response.ba) / 100
                 spin.bet = response.ba / 100
                 spin.win = response.win / 100
                 spin.multiplier = spin.win / spin.baseBet
                 spin.timestamp = new Date(request.timestamp).getTime()
                 spin.isFunGame = response.roundType == "demo"
                 spin.isFreeBonus = !response.buyFeature
-                spin.isBonus = response.buyFeature || (response.bonusRounds && response.bonusRounds.length > 0)
+                spin.isBonus = response.buyFeature || response.buySpin || (response.bonusRounds && response.bonusRounds.length > 0)
                 this.currentSpin = spin
                 
             } else if (httpRequest.url.endsWith("gamefinished")) {
@@ -680,7 +681,7 @@ var recordingActive
                 
                 let response = JSON.parse(httpRequest.response)
                 let spinData = response
-                if (request.endsWith("actions-v2")) {
+                if (request.indexOf("actions-v2") >= 0) {
                     spinData = response.actions[0]
                 }
                 
@@ -702,7 +703,7 @@ var recordingActive
                 }
                 
                 if (request.endsWith("buy-feature")) {
-                    spin.bet = spinData.featureCost
+                    spin.bet = spinData.featureCost / 100
                     spin.isBonus = true
                     spin.isFreeBonus = false
                 } else if (spinData.steps[spinData.steps.length - 1].totalFreeSpins || spinData.steps[0].freeSpinsAwarded) {
