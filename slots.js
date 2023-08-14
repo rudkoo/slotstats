@@ -447,4 +447,23 @@ yggdrasilSlots = {
     "10305": { name: "7 Gold Gigablox", "BUY_BONUS-1": 60, "BUY_BONUS-2": 120, "BUY_BONUS-3": 240, "BB_BIG_GIGA": 150 },
     "10365": { name: "Cannonade!", BUYBONUS: 100, BUYMAXBONUS: 500 },
     "10383": { name: "Dragon Blox", BUY_BONUS: 100, BUY_FS_RAND: 65 },
+    
+    "10324": { name: "Gods VS Gigablox", buy_feature: 100 },
+    "10375": { name: "Rainbow Power Pots UltraNudge", buy_bonus: 100 },
+    "10377": { name: "The Legend of Musashi", BUY_SC: 27, BUY_FS_RAND: 80 },
+    "10376": { name: "Festival 10K Ways", buy_feature: 100 },
+    "10389": { name: "HipHopPop", "bonus-buy-1": 75, "bonus-buy-3": 300, "bonus-buy-4": 300, "bonus-buy-5": 1000 },
+    "10321": { name: "Double Lucky Mushrooms", BONUS_BUY: 65 },
+    "10287": { name: "Neon Villains DoubleMax", higherChanceSpin: { GOLDEN_BET: 1.2 }, BUY_BONUS_0: 100, BUY_BONUS_1: 200, BUY_BONUS_2: 500 },
+    "10245": { name: "Power of Love" },
+    "10395": { name: "Elysian Jackpots" },
+    "10379": { name: "Lady Merlin" },
+    "10374": { name: "Fury of Hyde Megaways" },
+    "10372": { name: "Pharaoh’s Gaze DoubleMax", BONUSBUY: 100 },
+    "10378": { name: "Winterberries 2", BUY_BONUS_0: 100, BUY_BONUS_GB_0: 150, BUY_BONUS_1: 200, BUY_BONUS_GB_1: 300 },
+    "10384": { name: "3 Lucky Leprechauns", "BUY_BONUS-3": 35, "BUY_BONUS-1": 75, "BUY_BONUS-2": 330 },
+    "10405": { name: "Book of Books", BUY_FS_3SC: 120, BUY_FS_4SC: 250, BUY_FS_5SC: 500 },
+    "10394": { name: "Bugs Money", higherChanceSpin: { LUCKYBET_BUY: 1.5 } },
+    "10403": { name: "Big Bucks Buffalo", buyfeature: 80 },
+    "10380": { name: "E-Force", BUY_BONUS_0: 50, BUY_BONUS_1: 500 }
 }

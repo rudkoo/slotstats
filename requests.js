@@ -204,7 +204,17 @@ var recordingActive
     class YggdrasilRequestProcessor extends RequestProcessor {
         constructor() {
             super()
-            this.uriPatterns = [".*://.*.yggdrasilgaming.com/slots/.*/.*", ".*://.*.yggdrasilgaming.com/app/.*/.*", ".*://.*.yggdrasilgaming.com/init/launchClient.html.*", ".*://.*.yggdrasilgaming.com/game.web/service.*", ".*://.*localhost.*/slotstats_tester/pragmatic.cgi.*"]
+            this.uriPatterns = [
+                ".*://.*.yggdrasilgaming.com/slots/.*/.*",
+                ".*://.*.yggdrasilgaming.com/app/.*/.*",
+                ".*://.*.yggdrasilgaming.com/init/launchClient.html.*",
+                ".*://.*.yggdrasilgaming.com/game.web/service.*",
+                ".*://.*.pff-ygg.com/slots/.*/.*",
+                ".*://.*.pff-ygg.com/app/.*/.*",
+                ".*://.*.pff-ygg.com/init/launchClient.html.*",
+                ".*://.*.pff-ygg.com/game.web/service.*",
+                ".*://.*localhost.*/slotstats_tester/pragmatic.cgi.*"
+            ]
             this.provider = "Yggdrasil"
             this.currentSpin = null
         }

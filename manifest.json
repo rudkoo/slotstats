@@ -23,6 +23,7 @@
         "matches": [
             "*://*.pragmaticplay.net/*",
             "*://*.ppgames.net/*",
+            "*://*.pff-ygg.com/*",
             "*://*.yggdrasilgaming.com/*",
             "*://*.hacksawgaming.com/*",
             "*://*.relaxg.com/*",
@@ -43,6 +44,9 @@
             "*://*.yggdrasilgaming.com/slots/*/*",
             "*://*.yggdrasilgaming.com/app/*/*",
             "*://*.yggdrasilgaming.com/init/launchClient.html*",
+            "*://*.pff-ygg.com/slots/*/*",
+            "*://*.pff-ygg.com/app/*/*",
+            "*://*.pff-ygg.com/init/launchClient.html*",
             "*://*.hacksawgaming.com/*/*/index.html*",
             "*://*.relaxg.net/*/*/casino/games/*",
             "*://*.relaxg.com/*/*/casino/games/*",
