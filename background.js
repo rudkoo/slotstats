@@ -401,7 +401,7 @@ function saveSpinToTable(spin, statsTable, betStatsTable, sessionId = null) {
             }
             
             gameStats.last_played = spin.timestamp
-            gameStats.game_name = spin.gameName || registeredGames[spin.gameId]
+            gameStats.game_name = spin.gameName || registeredGames[spin.gameId] || (spin.provider + ": " + spin.gameId)
             const transaction = db.transaction(statsTable, "readwrite");
             const objectStore = transaction.objectStore(statsTable);
             const updateRequest = objectStore.put(gameStats);
