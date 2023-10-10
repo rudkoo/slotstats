@@ -500,10 +500,12 @@ var recordingActive
             
             if (window.hacksawCasino) {
                 window.hacksawCasino.PubSub.getChannel("casino").subscribe("startGame", function(e) {
-                    for (let bonus of e.featureBuyData) {
-                        processor.featureBuyData[bonus.bonusGameId] = parseInt(bonus.betCostMultiplier)
+                    if (e.featureBuyData) {
+                        for (let bonus of e.featureBuyData) {
+                            processor.featureBuyData[bonus.bonusGameId] = parseInt(bonus.betCostMultiplier)
+                        }
+                        processor.maxPotential = parseInt(e.gameInfoData.maximumWinMultiplier)
                     }
-                    processor.maxPotential = parseInt(e.gameInfoData.maximumWinMultiplier)
                 })
                 window.hacksawCasino.PubSub.getChannel("casino").subscribe("initData", function(e) {
                     processor.currency = e.currency
