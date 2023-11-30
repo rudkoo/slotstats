@@ -502,7 +502,7 @@ $(document).ready(function () {
                     data: null,
                     defaultContent: '',
                 },
-                { data: 'game_name' },
+                { data: 'game_name', defaultContent: '' },
                 { data: 'max_x', render: function(data, type, row) {
                     return data + " (" + row.max_x_bet + " " + row.max_x_currency + ")";
                 } },
@@ -542,7 +542,7 @@ $(document).ready(function () {
                     data: null,
                     defaultContent: '',
                 },
-                { data: 'game_name' },
+                { data: 'game_name', defaultContent: '' },
                 { data: 'max_x', render: function(data, type, row) {
                     return data + " (" + row.max_x_bet + " " + row.max_x_currency + ")";
                 } },
