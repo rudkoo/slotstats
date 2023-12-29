@@ -2,6 +2,90 @@
 
 var recordingActive
 
+const HEX_CHARACTERS = '0123456789abcdef';
+
+function toHex(byteArray) {
+    const hex = [];
+    byteArray.forEach(function(b) {
+        hex.push(HEX_CHARACTERS.charAt(b >> 4 & 0xf));
+        hex.push(HEX_CHARACTERS.charAt(b & 0xf));
+    });
+    return hex.join('');
+}
+
+function fromHex(str) {
+    if(typeof str !== 'string') {
+        return [];
+    }
+    const byteArray = [];
+    const characters = str.split('');
+    for(let i = 0; i < characters.length; i += 2) {
+        byteArray.push(HEX_CHARACTERS.indexOf(characters[i]) << 4 | HEX_CHARACTERS.indexOf(characters[i + 1]));
+    }
+    return byteArray;
+}
+
+function rc4(keyByteArray, inputByteArray) {
+    let s = [],
+        i,
+        j,
+        x, outputByteArray = [];
+
+    for(i = 0; i < 256; i++) {
+        s[i] = i;
+    }
+
+    for(i = 0, j = 0; i < 256; i++) {
+        j = (j + s[i] + keyByteArray[i % keyByteArray.length]) % 256;
+        x = s[i];
+        s[i] = s[j];
+        s[j] = x;
+    }
+
+    for(let y = 0, i = 0, j = 0; y < inputByteArray.length; y++) {
+        i = (i + 1) % 256;
+        j = (j + s[i]) % 256;
+        x = s[i];
+        s[i] = s[j];
+        s[j] = x;
+        outputByteArray.push(inputByteArray[y] ^ s[(s[i] + s[j]) % 256]);
+    }
+    return outputByteArray;
+}
+
+function stringToByteArray(str) {
+    const encoded = encodeURIComponent(str);
+    const characters = encoded.split('');
+    const byteArray = [];
+    for(let i = 0; i < characters.length; i++) {
+        if(characters[i] === '%') {
+            byteArray.push(HEX_CHARACTERS.indexOf(characters[i + 1].toLowerCase()) << 4 | HEX_CHARACTERS.indexOf(characters[i + 2].toLowerCase()));
+            i += 2;
+        } else {
+            byteArray.push(characters[i].charCodeAt(0));
+        }
+    }
+    return byteArray;
+}
+
+function byteArrayToString(byteArray) {
+    let encoded = '';
+    for(let i = 0; i < byteArray.length; i++) {
+        encoded += '%' + HEX_CHARACTERS.charAt(byteArray[i] >> 4 & 0xf) + HEX_CHARACTERS.charAt(byteArray[i] & 0xf);
+    }
+    return decodeURIComponent(encoded);
+}
+
+const rc4Api = {
+    encrypt: function(key, str) {
+        return toHex(rc4(stringToByteArray(key), stringToByteArray(str)));
+    },
+
+    decrypt: function(key, str) {
+        return byteArrayToString(rc4(stringToByteArray(key), fromHex(str)));
+    }
+};
+
 (() => {
     recordingActive = false
     class HttpRequest {
@@ -14,20 +98,41 @@ var recordingActive
         }
     }
     
+    class WebSocketMessage {
+        constructor(data) {
+            this.url = data.url;
+            this.data = data.data;
+        }
+    }
+    
     class Injector {
         inject() { }
         
         notifyWatchers(httpRequest) {
-            //window.postMessage({ msgId: "log", message: httpRequest }, "*")
+            //window.postMessage({ msgId: "log", message: httpRequest.url }, "*")
             for (let processor of Injector.processors) {
                 if (processor.isValidProcessor(httpRequest)) {
                     processor.processRequest(httpRequest)
                 }
             }
         }
+        notifyWsRequestListeners(wsRequest) {
+            for (let processor of Injector.wsProcessors) {
+                if (processor.isValidProcessor(wsRequest)) {
+                    processor.processWsRequest(wsRequest)
+                }
+            }
+        }
+        notifyWsMessageListeners(wsMessage) {
+            for (let processor of Injector.wsProcessors) {
+                if (processor.isValidProcessor(wsMessage)) {
+                    processor.processWsMessage(wsMessage)
+                }
+            }
+        }
     }
     Injector.processors = []
-    
+
     class XMLHttpRequestInjector extends Injector {
         inject() {
             const xhr = window.XMLHttpRequest;
@@ -40,90 +145,22 @@ var recordingActive
                     }
                 };
             
-            class XMLHttpRequestWrapper {
+            class XMLHttpRequestWrapper extends XMLHttpRequest{
                 constructor() {
-                    const obj = this;
-                    this.listeners = {};
-                    this.headers = {};
-                    this.wrappedObj = new xhr;
-                    let events = ["readyState", "response", "responseText", "responseType", "responseURL", "responseXML", "status", "statusText", "timeout", "upload", "withCredentials"];
-                    events.forEach((e => {
-                        Object.defineProperty(this, e, {
-                            get: function() {
-                                return this.wrappedObj[e]
-                            },
-                            set: function(value) {
-                                this.wrappedObj[e] = value
-                            }
-                        })
-                    }));
-                    events = ["onloadstart", "onprogress", "onabort", "onerror", "ontimeout", "onloadend"];
-                    events.forEach((e => {
-                        obj.wrappedObj[e] = function() {
-                            obj[e] && obj[e].apply(obj, arguments)
-                        }
-                    }));
-                    this.loaded = false;
-                    this.wrappedObj.onreadystatechange = function() {
-                        if (this.wrappedObj.readyState === 4 && !this.loaded) {
-                            this.loaded = true
-                            processRequest(this)
-                        }
-                        this.onreadystatechange && this.onreadystatechange.apply(this, arguments)
-                    }.bind(this);
-                    this.wrappedObj.onload = function() {
-                        if (!this.loaded) {
-                            this.loaded = true
-                            processRequest(this)
-                        }
-                        this.onload && this.onload.apply(this, arguments)
-                    }.bind(this);
+                    super()
+                    this.addEventListener("load", function (e) {
+                        processRequest(this)
+                    });
                 }
                 open(e, t, r, n, s) {
-                    this.method = e, this.url = t, this.headers = {}, this.body = null, this.loaded = false, this.wrappedObj.open.apply(this.wrappedObj, arguments)
-                }
-                overrideMimeType() {
-                    return this.wrappedObj.overrideMimeType.apply(this.wrappedObj, arguments)
-                }
-                setRequestHeader(e, t) {
-                    return this.headers[e] = t, this.wrappedObj.setRequestHeader.apply(this.wrappedObj, arguments)
-                }
-                abort() {
-                    return this.wrappedObj.abort.apply(this.wrappedObj, arguments)
+                    super.open(e, t, r, n, s)
+                    this.method = e, this.url = t, this.headers = {}, this.body = null
                 }
                 send(e) {
-                    return this.body = e, this.wrappedObj.send.apply(this.wrappedObj, arguments)
+                    super.send(e)
+                    this.body = e
                 }
-                getAllResponseHeaders(e) {
-                    return this.wrappedObj.getAllResponseHeaders.apply(this.wrappedObj, arguments)
-                }
-                getResponseHeader(e) {
-                    return this.wrappedObj.getResponseHeader.apply(this.wrappedObj, arguments)
-                }
-                addEventListener(e, t, r) {
-                    e in this.listeners || (this.listeners[e] = []);
-                    const n = function() {
-                        t.apply(this, arguments)
-                    };
-                    this.listeners[e].push({
-                        orig: t,
-                        wrap: n
-                    }), this.wrappedObj.addEventListener(e, n, r)
-                }
-                removeEventListener(e, t) {
-                    if (!(e in this.listeners)) return;
-                    const r = this.listeners[e];
-                    for (let n = 0, s = r.length; n < s; n++)
-                        if (r[n].orig === t) return this.wrappedObj.removeEventListener(e, r[n].wrap), void r.splice(n, 1)
-                }
-                dispatchEvent(e) {
-                    return this.wrappedObj.dispatchEvent(e)
-                }
-            } ["UNSENT", "OPENED", "HEADERS_RECEIVED", "LOADING", "DONE", "READYSTATE_UNINITIALIZED", "READYSTATE_LOADING", "READYSTATE_LOADED", "READYSTATE_INTERACTIVE", "READYSTATE_COMPLETE"].forEach((t => {
-                var n;
-                n = t, {}.propertyIsEnumerable.call(xhr, n) && (XMLHttpRequestWrapper[n] = xhr[n])
-            }))
-            window.postMessage({ msgId: "log", message: "injecting XMLHttpRequest" }, "*")
+            }
             window.XMLHttpRequest = XMLHttpRequestWrapper
         }
     }
@@ -163,6 +200,42 @@ var recordingActive
         }
     }
     
+    class WebSocketInjector extends Injector {
+        inject() {
+            const processRequest = e => {
+                const message = new WebSocketMessage(e);
+                try {
+                    this.notifyWsRequestListeners(message);
+                } catch (e) {
+                    window.postMessage({ msgId: "log", message: "Error: " + e.toString() + "\n" + e.stack  }, "*")
+                }
+            };
+            const processMessage = e => {
+                const message = new WebSocketMessage(e);
+                try {
+                    this.notifyWsMessageListeners(message);
+                } catch (e) {
+                    window.postMessage({ msgId: "log", message: "Error: " + e.toString() + "\n" + e.stack  }, "*")
+                }
+            };
+            
+            class WebSocketWrapper extends WebSocket{
+                constructor(url, protocols) {
+                    super(url, protocols)
+                    this.addEventListener("message", function (e) {
+                        processMessage({ url: this.url, data: e.data })
+                    });
+                }
+                
+                send(data) {
+                    super.send(data)
+                    processRequest({ url: this.url, data: data })
+                }
+            }
+            window.WebSocket = WebSocketWrapper
+        }
+    }
+    
     class Spin {
         constructor() {
             this.provider = "unknown"
@@ -198,6 +271,12 @@ var recordingActive
         }
         
         processRequest(httpRequest) {
+        }
+        
+        processWsRequest(wsMessage) {
+        }
+        
+        processWsMessage(wsMessage) {
         }
     }
     
@@ -639,7 +718,9 @@ var recordingActive
                 spin.timestamp = new Date(request.timestamp).getTime()
                 spin.isFunGame = response.roundType == "demo"
                 spin.isFreeBonus = !(response.buyFeature || response.buySpin)
-                spin.isBonus = response.buyFeature || response.buySpin || (response.bonusRounds && response.bonusRounds.length > 0)
+                spin.isBonus = response.buyFeature || response.buySpin || 
+                    (response.bonusRounds && response.bonusRounds.length > 0) ||
+                    (response.freespins && response.freespins.length > 0) || false
                 
                 if (response.ended) {
                     window.postMessage({ msgId: "saveSpin", spin: spin }, "*")
@@ -742,10 +823,123 @@ var recordingActive
         }
     }
     
-    Injector.processors = [ new PragmaticV3RequestProcessor(), new PragmaticV4RequestProcessor(), new YggdrasilRequestProcessor(), new HacksawGamingProcessor(), new RelaxGamingProcessor(), new PushGamingProcessor() ]
+    class NolimitCityProcessor extends RequestProcessor {
+        constructor() {
+            super()
+            this.uriPatterns = [".*://.*.nolimitcity.com/EjsFrontWeb/fs", ".*://.*.nolimitcity.com/EjsGameWeb/ws/game.*"]
+            this.provider = "Nolimit City"
+            this.currentSpin = null
+            this.currency = null
+            this.isFunMode = true
+            this.gameId = null
+            this.gameName = null
+            this.featureBuyData = {}
+            this.serverKey = null
+        }
+        
+        processRequest(httpRequest) {
+            if (httpRequest.url.endsWith("EjsFrontWeb/fs")) {
+                webSocketInjector.inject()
+                let response = JSON.parse(httpRequest.response)
+                this.serverKey = response.key
+            }
+        }
+        
+        processWsRequest(wsMessage) {
+            if (wsMessage.url.indexOf("EjsGameWeb/ws/game") >= 0) {
+                let message = JSON.parse(rc4Api.decrypt(this.serverKey, wsMessage.data))
+                if (message.content.type == "featureBet" || message.content.type == "normalBet") {
+                    let spin = new Spin()
+                    spin.provider = this.provider
+                    spin.gameId = this.gameId
+                    spin.gameName = this.gameName
+                    spin.isFunGame = this.isFunMode
+                    spin.currency = this.currency
+                    spin.baseBet = parseFloat(message.content.bet)
+                    spin.isFreeBonus = false
+                    
+                    if (message.content.type == "featureBet") {
+                        spin.bet = spin.baseBet * this.featureBuyData[message.content.featureName]
+                        spin.isBonus = true
+                    } else {
+                        spin.bet = spin.baseBet
+                        spin.isBonus = false
+                    }
+                    this.currentSpin = spin
+                }
+            }
+        }
+        
+        processWsMessage(wsMessage) {
+            if (wsMessage.url.indexOf("EjsGameWeb/ws/game") >= 0) {
+                let message = JSON.parse(this.lzwDecode(wsMessage.data))
+                if (message.gameInfo) {
+                    this.gameId = window.nolimit.options.game
+                    this.gameName = message.gameInfo.displayName
+                    this.isFunMode = window.nolimit.options.funMode
+                    this.currency = message.currency.code
+                    this.featureBuyData = {}
+                    for (let featureBuy of message.game.featureBuyTimesBetValue) {
+                        this.featureBuyData[featureBuy.name] = parseFloat(featureBuy.price)
+                    }
+                    window.postMessage({ msgId: "registerGame", gameId: this.gameId, gameName: this.gameName, providerName: this.provider, maxPotential: message.gameInfo.maxMultiplier }, "*")
+                } else {
+                    if (this.currentSpin.isBonus && (message.game.boostedBetPlayed || message.game.boostedBet) && message.game.mode.indexOf("FREESPIN") < 0) {
+                        this.currentSpin.isBonus = false
+                    }
+                    if (!this.currentSpin.isBonus && message.game.nextMode && message.game.nextMode.indexOf("FREESPIN") >= 0) {
+                        this.currentSpin.isBonus = true
+                        this.currentSpin.isFreeBonus = true
+                    }
+                    if (message.game.nextMode == "NORMAL") {
+                        this.currentSpin.win = message.game.accumulatedRoundWin
+                        this.currentSpin.multiplier = this.currentSpin.win / this.currentSpin.baseBet
+                        window.postMessage({ msgId: "saveSpin", spin: this.currentSpin }, "*")
+                        this.currentSpin = null
+                    }
+                }
+            }
+        }
+        
+        lzwDecode(input) {
+            if (input.startsWith('lzw:')) {
+                input = input.substr('lzw:'.length);
+            } else {
+                return input;
+            }
+            const dict = {};
+            let currChar = input.substr(0, 1);
+            let oldPhrase = currChar;
+            let code = 256;
+            const out = [currChar];
+            for (let i = 1; i < input.length; i++) {
+                const currentCode = input.charCodeAt(i);
+                let phrase;
+                if (currentCode < 256) {
+                    phrase = input.substr(i, 1);
+                } else if (dict[currentCode]) {
+                    phrase = dict[currentCode];
+                } else {
+                    phrase = oldPhrase + currChar;
+                }
+                out.push(phrase);
+                currChar = phrase.substr(0, 1);
+                dict[code] = oldPhrase + currChar;
+                code++;
+                oldPhrase = phrase;
+            }
+            return out.join('');
+        }
+    }
+    
+    let nolimitProcessor = new NolimitCityProcessor()
+    Injector.processors = [ new PragmaticV3RequestProcessor(), new PragmaticV4RequestProcessor(), new YggdrasilRequestProcessor(), new HacksawGamingProcessor(), new RelaxGamingProcessor(), new PushGamingProcessor(), nolimitProcessor ]
+    Injector.wsProcessors = [ nolimitProcessor ]
     const xhrInjector = new XMLHttpRequestInjector();
     const fetchInjector = new FetchInjector();
+    const webSocketInjector = new WebSocketInjector();
     xhrInjector.inject();
     fetchInjector.inject();
+    //webSocketInjector.inject();
     
 })();

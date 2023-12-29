@@ -30,7 +30,9 @@
             "*://*.relaxg.net/*",
             "*://*.sidetechnology.co/*",
             "*://d2drhksbtcqozo.cloudfront.net/*",
-            "*://*.pushgaming.com/*"
+            "*://*.pushgaming.com/*",
+            "*://*.nolimitcdn.com/*",
+            "*://*.nolimitcity.com/*"
         ]
     }],
     
@@ -55,9 +57,14 @@
             "*://d2drhksbtcqozo.cloudfront.net/casino/*",
             "*://*.sidetechnology.co/hive/b2c/game/*/*/index.html*",
             "*://*.pushgaming.com/hive/b2c/game/*/*/index.html*",
-            "*://*.pushgaming.com/mesh/b2c/*/*/launch*"
+            "*://*.pushgaming.com/mesh/b2c/*/*/launch*",
+            "*://*.nolimitcdn.com/loader/game-loader.html*",
+            "*://*.nolimitcdn.com/loader/sgd.html*",
+            "*://*.nolimitcity.com/free-play/*",
+            "*://*.nolimitcity.com/load-game/*"
         ],
         "run_at": "document_start",
+        "match_about_blank": true,
         "all_frames": true,
         "js": [
             "inject.js"
