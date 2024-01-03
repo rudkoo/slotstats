@@ -277,6 +277,19 @@ function endCurrentSession() {
     // TODO
 }
 
+function exportRecords() {
+    Promise.all([getAllRecords("game_stats"), getAllRecords("fun_game_stats"), getAllRecords("game_bet_stats"), getAllRecords("fun_game_bet_stats")]).then((values) => {
+        let result = {
+            "game_stats": values[0],
+            "fun_game_stats": values[1],
+            "game_bet_stats": values[2],
+            "fun_game_bet_stats": values[3]
+        }
+        result = JSON.stringify(result)
+        chrome.runtime.sendMessage({ id: "exportedRecords", data: result }, function() {});
+    });
+}
+
 function registerGame(tabId, gameId, gameName, providerName, maxPotential) {
     if (!registeredGames[gameId]) {
         registeredGames[gameId] = gameName
@@ -358,8 +371,6 @@ function saveSpinToTable(spin, statsTable, betStatsTable, sessionId = null) {
             if (!gameStats) {
                 gameStats = {}
                 gameStats.gameId = spin.gameId
-                gameStats.sessionId = sessionId
-                console.log(spin.multiplier)
                 gameStats.max_x = roundToFixed(spin.multiplier)
                 gameStats.avg_x = spin.isBonus ? spin.multiplier : 0
                 gameStats.bonus_count = spin.isBonus ? 1 : 0
@@ -370,6 +381,9 @@ function saveSpinToTable(spin, statsTable, betStatsTable, sessionId = null) {
                 gameStats.avg_spins_per_bonus = 0
                 gameStats.max_x_bet = Math.round(spin.baseBet*100)/100
                 gameStats.max_x_currency = spin.currency
+                if (sessionId) {
+                    gameStats.sessionId = sessionId
+                }
                 
                 if (spin.isBonus) {
                     if (spin.isFreeBonus) {
@@ -418,7 +432,6 @@ function saveSpinToTable(spin, statsTable, betStatsTable, sessionId = null) {
             if (!betStats) {
                 betStats = {}
                 betStats.gameId = spin.gameId
-                betStats.sessionId = sessionId
                 betStats.currency = spin.currency
                 betStats.max_win = 0
                 betStats.max_win_bet = 0
@@ -559,6 +572,8 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
         createNewSession()
     } else if (msg.id === 'endCurrentSession') {
         endCurrentSession()
+    } else if (msg.id === 'exportRecords') {
+        exportRecords()
     }
     
     sendResponse()

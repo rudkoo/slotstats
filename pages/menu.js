@@ -16,4 +16,8 @@ document.addEventListener("DOMContentLoaded", () => {
         chrome.windows.create({ url: chrome.runtime.getURL("pages/active_h.html"), type: "popup", width: 700, height: 340 });
         window.close()
     })
+    document.getElementById("menuitem.export").addEventListener("click", () => {
+        chrome.tabs.create({ url: chrome.runtime.getURL("pages/export.html") });
+        window.close()
+    })
 });
