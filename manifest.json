@@ -6,8 +6,29 @@
     "description": "Collects personal statistics about the spins on online slot of specific game providers.",
 
     "permissions": [
-        "tabs"
+        "tabs",
+        "declarativeNetRequestWithHostAccess"
     ],
+    
+    "host_permissions": [
+        "*://*.skin.club/*",
+        "*://*.hacksawgaming.com/*"
+    ],
+    
+    "declarative_net_request" : {
+        "rule_resources" : [
+            {
+                "id": "skin_club",
+                "enabled": true,
+                "path": "res/skin_club_ruleset.json"
+            },
+            {
+                "id": "usti",
+                "enabled": true,
+                "path": "res/usti_ruleset.json"
+            }
+        ]
+    },
 
     "background": {
         "service_worker": "background.js"
@@ -19,7 +40,14 @@
     },
     
     "web_accessible_resources": [{
-        "resources": ["requests.js", "slots.js", "currencies.js", "launchers.js"],
+        "resources": [
+            "requests.js",
+            "slots.js",
+            "currencies.js",
+            "launchers.js",
+            "icons/footer-bg.CTQnNjd-.png",
+            "icons/footer-bg-desktop.BG0i3vM6.png",
+            "res/usti.webm"],
         "matches": [
             "*://*.pragmaticplay.net/*",
             "*://*.ppgames.net/*",
@@ -32,7 +60,8 @@
             "*://d2drhksbtcqozo.cloudfront.net/*",
             "*://*.pushgaming.com/*",
             "*://*.nolimitcdn.com/*",
-            "*://*.nolimitcity.com/*"
+            "*://*.nolimitcity.com/*",
+            "*://*.skin.club/*"
         ]
     }],
     

@@ -1,0 +1,11 @@
+[
+    {
+        "id": 3,
+        "priority": 1,
+        "action": { "type": "redirect", "redirect": { "extensionPath": "/res/usti.webm" } },
+        "condition": {
+            "urlFilter": "*://*.hacksawgaming.com/1309/*/assets/default/common/sound/cash_register.webm",
+            "resourceTypes": ["xmlhttprequest"]
+        }
+    }
+]

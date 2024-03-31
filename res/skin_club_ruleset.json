@@ -1,0 +1,20 @@
+[
+    {
+        "id": 1,
+        "priority": 1,
+        "action": { "type": "redirect", "redirect": { "extensionPath": "/icons/footer-bg.CTQnNjd-.png" } },
+        "condition": {
+            "urlFilter": "*://*.skin.club/*/footer-bg.CTQnNjd-.png",
+            "resourceTypes": ["image"]
+        }
+    },
+    {
+        "id": 2,
+        "priority": 1,
+        "action": { "type": "redirect", "redirect": { "extensionPath": "/icons/footer-bg-desktop.BG0i3vM6.png" } },
+        "condition": {
+            "urlFilter": "*://*.skin.club/*/footer-bg-desktop.BG0i3vM6.png",
+            "resourceTypes": ["image"]
+        }
+    }
+]

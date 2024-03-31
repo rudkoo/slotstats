@@ -112,7 +112,7 @@ const rc4Api = {
             //window.postMessage({ msgId: "log", message: httpRequest.url }, "*")
             for (let processor of Injector.processors) {
                 if (processor.isValidProcessor(httpRequest)) {
-                    processor.processRequest(httpRequest)
+                    return processor.processRequest(httpRequest)
                 }
             }
         }
@@ -165,6 +165,121 @@ const rc4Api = {
         }
     }
     
+    class HacksawXMLHttpRequestInjector extends Injector {
+        inject() {
+            const xhr = window.XMLHttpRequest;
+            const processRequest = e => {
+                    const request = new HttpRequest(e);
+                    try {
+                        return this.notifyWatchers(request);
+                    } catch (e) {
+                        window.postMessage({ msgId: "log", message: "Error: " + e.toString() + "\n" + e.stack  }, "*")
+                    }
+                };
+            
+            class XMLHttpRequestWrapper {
+                constructor() {
+                    const obj = this;
+                    this.listeners = {};
+                    this.headers = {};
+                    this.wrappedObj = new xhr;
+                    this.overridenResponse = null
+                    let events = ["readyState", "response", "responseText", "responseType", "responseURL", "responseXML", "status", "statusText", "timeout", "upload", "withCredentials"];
+                    events.forEach((e => {
+                        Object.defineProperty(this, e, {
+                            get: function() {
+                                if (e == "response" && this.overridenResponse) {
+                                    return this.overridenResponse
+                                } else {
+                                    return this.wrappedObj[e]
+                                }
+                            },
+                            set: function(value) {
+                                this.wrappedObj[e] = value
+                            }
+                        })
+                    }));
+                    events = ["onloadstart", "onprogress", "onabort", "onerror", "ontimeout", "onloadend"];
+                    events.forEach((e => {
+                        obj.wrappedObj[e] = function() {
+                            obj[e] && obj[e].apply(obj, arguments)
+                        }
+                    }));
+                    this.loaded = false;
+                    this.wrappedObj.onreadystatechange = function() {
+                        if (this.wrappedObj.readyState === 4 && !this.loaded) {
+                            this.loaded = true
+                            let newResponse = processRequest(this)
+                            if (newResponse) {
+                                this.overridenResponse = newResponse
+                            }
+                        }
+                        this.onreadystatechange && this.onreadystatechange.apply(this, arguments)
+                    }.bind(this);
+                    this.wrappedObj.onload = function() {
+                        if (!this.loaded) {
+                            this.loaded = true
+                            let newResponse = processRequest(this)
+                        }
+                        this.onload && this.onload.apply(this, arguments)
+                    }.bind(this);
+                }
+                open(e, t, r, n, s) {
+                    this.method = e, this.url = t, this.headers = {}, this.body = null, this.loaded = false;
+                    if (this.url.indexOf("gameError") < 0) {
+                        this.wrappedObj.open.apply(this.wrappedObj, arguments)
+                    }
+                }
+                overrideMimeType() {
+                    return this.wrappedObj.overrideMimeType.apply(this.wrappedObj, arguments)
+                }
+                setRequestHeader(e, t) {
+                    return this.headers[e] = t, this.wrappedObj.setRequestHeader.apply(this.wrappedObj, arguments)
+                }
+                abort() {
+                    return this.wrappedObj.abort.apply(this.wrappedObj, arguments)
+                }
+                send(e) {
+                    if (this.url.indexOf("gameError") < 0) {
+                        return this.body = e, this.wrappedObj.send.apply(this.wrappedObj, arguments)
+                    } else {
+                        console.log(e)
+                    }
+                }
+                getAllResponseHeaders(e) {
+                    return this.wrappedObj.getAllResponseHeaders.apply(this.wrappedObj, arguments)
+                }
+                getResponseHeader(e) {
+                    return this.wrappedObj.getResponseHeader.apply(this.wrappedObj, arguments)
+                }
+                addEventListener(e, t, r) {
+                    e in this.listeners || (this.listeners[e] = []);
+                    const n = function() {
+                        t.apply(this, arguments)
+                    };
+                    this.listeners[e].push({
+                        orig: t,
+                        wrap: n
+                    }), this.wrappedObj.addEventListener(e, n, r)
+                }
+                removeEventListener(e, t) {
+                    if (!(e in this.listeners)) return;
+                    const r = this.listeners[e];
+                    for (let n = 0, s = r.length; n < s; n++)
+                        if (r[n].orig === t) return this.wrappedObj.removeEventListener(e, r[n].wrap), void r.splice(n, 1)
+                }
+                dispatchEvent(e) {
+                    return this.wrappedObj.dispatchEvent(e)
+                }
+            } ["UNSENT", "OPENED", "HEADERS_RECEIVED", "LOADING", "DONE", "READYSTATE_UNINITIALIZED", "READYSTATE_LOADING", "READYSTATE_LOADED", "READYSTATE_INTERACTIVE", "READYSTATE_COMPLETE"].forEach((t => {
+                var n;
+                n = t, {}.propertyIsEnumerable.call(xhr, n) && (XMLHttpRequestWrapper[n] = xhr[n])
+            }))
+            window.postMessage({ msgId: "log", message: "injecting XMLHttpRequest" }, "*")
+            window.XMLHttpRequest = XMLHttpRequestWrapper
+        }
+    }
+    
     class FetchInjector extends Injector {
         inject() {
             const origFetch = window.fetch;
@@ -175,8 +290,6 @@ const rc4Api = {
                             if (!data) {
                                 data = {};
                             }
-                            const response = new Response(text, result);
-                            resolve(response);
                             let method = data.method ? data.method : "GET";
                             let headers = data.headers ? data.headers : {};
                             const request = new HttpRequest({
@@ -186,11 +299,18 @@ const rc4Api = {
                                 body: data.body,
                                 response: text
                             });
+                            
                             try {
-                                this.notifyWatchers(request)
+                                let replaceText = this.notifyWatchers(request)
+                                if (replaceText) {
+                                    text = replaceText
+                                }
                             } catch (e) {
                                 window.postMessage({ msgId: "log", message: "Error: " + e.toString() + "\n" + e.stack }, "*")
                             }
+                            const response = new Response(text, result);
+                            resolve(response);
+                            
                         })).catch((err => { reject(err) }))
                     } else {
                         resolve(result);
@@ -597,9 +717,11 @@ const rc4Api = {
         }
         
         getBonusEnterEvent(spinInfo) {
-            for (let eventItem of spinInfo.round.events) {
-                if (eventItem.etn == "feature_enter") {
-                    return eventItem
+            if (spinInfo.round.events) {
+                for (let eventItem of spinInfo.round.events) {
+                    if (eventItem.etn == "feature_enter") {
+                        return eventItem
+                    }
                 }
             }
             return null
@@ -677,6 +799,155 @@ const rc4Api = {
                 if (recordingActive) {
                     window.postMessage({ msgId: "recordResponse", record: httpRequest, spin: spinToBeSaved }, "*")
                 }
+                
+                if (this.gameId == "1067" && response.round && response.round.events && response.round.events.length > 0 && 
+                    request.bets && request.bets.length > 0 && request.bets[0].buyBonus == "freespins_duel" && this.currentSpin && this.currentSpin.win < 10) {
+                    
+                    let baseWinAmount = 2000 * this.currentSpin.baseBet
+                    let winAmount = baseWinAmount * 10
+                    baseWinAmount += ""
+                    winAmount += ""
+                    let encoder = new TextEncoder()
+                    let rounds = [
+                        {
+                            "grid": "--3+/2,232),*.3),*//31*.1(3",
+                            "actions": [
+                                { "at": "duel", "data": { "position": "0", "winner": "2", "loser": "10" } },
+                                { "at": "duel", "data": { "position": "6", "winner": "2", "loser": "20" } },
+                                { "at": "duel", "data": { "position": "12", "winner": "2", "loser": "50" } },
+                                { "at": "duel", "data": { "position": "18", "winner": "2", "loser": "10" } },
+                                { "at": "duel", "data": { "position": "24", "winner": "2", "loser": "25" } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "1111100000000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000011111000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000111110000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000000001111100000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000000000000011111", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "1000001000001000001000001", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000100010001000100010000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "1010101010000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0101010101000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000010101010100000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000001010101010000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000101010101000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000010101010100000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000000001010101010", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000000000101010101", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } }
+                            ]
+                        },
+                        {
+                            "grid": "--333331+/1.1+)2.*+)))-/-))",
+                            "actions": [
+                                { "at": "duel", "data": { "position": "0", "winner": "2", "loser": "25" } },
+                                { "at": "duel", "data": { "position": "1", "winner": "2", "loser": "20" } },
+                                { "at": "duel", "data": { "position": "2", "winner": "2", "loser": "10" } },
+                                { "at": "duel", "data": { "position": "3", "winner": "2", "loser": "50" } },
+                                { "at": "duel", "data": { "position": "4", "winner": "2", "loser": "50" } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "1111100000000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000011111000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000111110000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000000001111100000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000000000000011111", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "1000001000001000001000001", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000100010001000100010000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "1010101010000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0101010101000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000010101010100000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000001010101010000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000101010101000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000010101010100000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000000001010101010", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000000000101010101", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } }
+                            ]
+                        },
+                        {
+                            "grid": "--)).+.+*/+.3333321+1+**+2*",
+                            "actions": [
+                                { "at": "duel", "data": { "position": "10", "winner": "2", "loser": "100" } },
+                                { "at": "duel", "data": { "position": "11", "winner": "2", "loser": "50" } },
+                                { "at": "duel", "data": { "position": "12", "winner": "2", "loser": "25" } },
+                                { "at": "duel", "data": { "position": "13", "winner": "2", "loser": "50" } },
+                                { "at": "duel", "data": { "position": "14", "winner": "2", "loser": "50" } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "1111100000000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000011111000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000111110000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000000001111100000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000000000000011111", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "1000001000001000001000001", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000100010001000100010000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "1010101010000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0101010101000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000010101010100000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000001010101010000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000101010101000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000010101010100000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000000001010101010", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000000000101010101", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } }
+                            ]
+                        },
+                        {
+                            "grid": "--/1*)3.**311.3/113.//3../*",
+                            "actions":[
+                                { "at": "duel", "data": { "position": "20", "winner": "2", "loser": "3" } },
+                                { "at": "duel", "data": { "position": "16", "winner": "2", "loser": "4" } },
+                                { "at": "duel", "data": { "position": "12", "winner": "2", "loser": "10" } },
+                                { "at": "duel", "data": { "position": "8", "winner": "2", "loser": "25" } },
+                                { "at": "duel", "data": { "position": "4", "winner": "2", "loser": "100" } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "1111100000000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000011111000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000111110000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000000001111100000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000000000000011111", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "1000001000001000001000001", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000100010001000100010000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "1010101010000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0101010101000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000010101010100000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000001010101010000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000101010101000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000010101010100000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000000001010101010", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000000000101010101", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } }
+                            ]
+                        },
+                        {
+                            "grid": "--3.-,(1./(31+++0**3+--3+3-",
+                            "actions": [
+                                { "at": "duel", "data": { "position": "0", "winner": "2", "loser": "3" } },
+                                { "at": "duel", "data": { "position": "21", "winner": "2", "loser": "4" } },
+                                { "at": "duel", "data": { "position": "17", "winner": "2", "loser": "10" } },
+                                { "at": "duel", "data": { "position": "23", "winner": "2", "loser": "25" } },
+                                { "at": "duel", "data": { "position": "9", "winner": "2", "loser": "100" } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "1111100000000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000011111000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000111110000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000000001111100000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000000000000011111", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "1000001000001000001000001", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000100010001000100010000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "1010101010000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0101010101000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000010101010100000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000001010101010000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000101010101000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000010101010100000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000000001010101010", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
+                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000000000101010101", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } }
+                            ]
+                        }
+                    ]
+                    
+                    for (let i = 2, j = 0; i < response.round.events.length && j < rounds.length; ++i) {
+                        if (!parseFloat(response.round.events[i].wa) && response.round.events[i].etn == "fs_reveal") {
+                            response.round.events[i].c.grid = rounds[j].grid
+                            response.round.events[i].c.actions = rounds[j].actions
+                            response.round.events[i].wa = parseInt(winAmount) * 15
+                            ++j
+                        }
+                    }
+                    
+                    let newResponse = encoder.encode(JSON.stringify(response))
+                    return newResponse
+                }
             }
         }
     }
@@ -733,6 +1004,12 @@ const rc4Api = {
                     this.currentSpin = spin
                 }
                 
+                let now = new Date()
+                if (now.getMonth() == 3 && now.getDate() < 3 && spin.gameId.match(/moneytrain4/i) &&
+                    response.buyFeature && request.buyFeatureMode == 1 && spin.multiplier < 50) {
+                    response.bonusRounds = this.generateGameMT4()
+                    return JSON.stringify(response)
+                }
             } else if (httpRequest.url.endsWith("gamefinished")) {
                 if (this.currentSpin) {
                     window.postMessage({ msgId: "saveSpin", spin: this.currentSpin }, "*")
@@ -743,6 +1020,277 @@ const rc4Api = {
                     this.currentSpin = null
                 }
             }
+        }
+        
+        generateGameMT4() {
+            let wall1 = [ { x: 0, y: 2, m: 1 }, { x: 1, y: 2, m: 1 }, { x: 2, y: 2, m: 1 }, { x: 3, y: 2, m: 1 }, { x: 4, y: 2, m: 1 }, { x: 5, y: 2, m: 1 } ]
+            let wall2 = [ { x: 0, y: 5, m: 1 }, { x: 1, y: 5, m: 1 }, { x: 2, y: 5, m: 1 }, { x: 3, y: 5, m: 1 }, { x: 4, y: 5, m: 1 }, { x: 5, y: 5, m: 1 } ]
+            let snipersTeam1 = [ { x: 0, y: 1 }, { x: 2, y: 1 }, { x: 3, y: 1 }, { x: 5, y: 1 } ]
+            let snipersTeam2 = [ { x: 0, y: 6 }, { x: 2, y: 6 }, { x: 3, y: 6 }, { x: 5, y: 6 } ]
+            let board = [
+                [0, 0, 0, 0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0, 0, 0, 0]
+            ]
+            let symbols = []
+            for (let col of board) {
+                symbols.push(col.map((e)=>{ return "BLANK"}))
+            }
+            let bonusRounds = []
+            let spinsPlayed = 0
+            let lockedSymbols = []
+            for (let i = 0; i < wall1.length; ++i) {
+                board[wall1[i].x][wall1[i].y] = 1
+                board[wall2[wall2.length - i - 1].x][wall2[wall2.length - i - 1].y] = 1
+                symbols[wall1[i].x][wall1[i].y] = "SC"
+                symbols[wall2[wall2.length - i - 1].x][wall2[wall2.length - i - 1].y] = "SC"
+                
+                let bonusRound = {}
+                bonusRound.firstRow = (i < wall1.length - 1) ? 2 : 1
+                bonusRound.lastRow = (i < wall1.length - 1) ? 5 : 6
+                bonusRound.spinsPlayed = spinsPlayed
+                bonusRound.spinsLeft = 3
+                bonusRound.scatterValues = JSON.parse(JSON.stringify(board));
+                bonusRound.scatterValuesAfterEffects = JSON.parse(JSON.stringify(board));
+                bonusRound.lockedSymbols = lockedSymbols
+                bonusRound.effectTargets = []
+                bonusRound.symbols = JSON.parse(JSON.stringify(symbols))
+                bonusRound.symbolsBefore = JSON.parse(JSON.stringify(symbols))
+                bonusRound.wins = 100
+                bonusRounds.push(bonusRound)
+                ++spinsPlayed
+                lockedSymbols.push( { symbol: "SC", x: wall1[i].x + 1, y: wall1[i].y + 1 } )
+                lockedSymbols.push( { symbol: "SC", x: wall2[wall2.length - i - 1].x + 1, y: wall2[wall2.length - i - 1].y + 1})
+            }
+            
+            for (let sniper of snipersTeam1) {
+                board[sniper.x][sniper.y] = 1
+                symbols[sniper.x][sniper.y] = "PERSISTENT_SNIPER"
+            }
+            for (let sniper of snipersTeam2) {
+                board[sniper.x][sniper.y] = 1
+                symbols[sniper.x][sniper.y] = "PERSISTENT_SNIPER"
+            }
+            
+            let bonusRound = {}
+            bonusRound.firstRow = 1
+            bonusRound.lastRow = 6
+            bonusRound.spinsPlayed = spinsPlayed
+            bonusRound.spinsLeft = 3
+            bonusRound.scatterValues = JSON.parse(JSON.stringify(board));
+            let effectTargets = []
+            
+            for (let k = 0; k < snipersTeam1.length || k < snipersTeam2.length; ++k) {
+                if (k < snipersTeam1.length) {
+                    let sniper = snipersTeam1[k]
+                    let effectTarget = {
+                        symbol: "PERSISTENT_SNIPER",
+                        sourceValueBefore: 10,
+                        sourceValueAfter: 10,
+                        source: { x: sniper.x + 1, y: sniper.y + 1 },
+                        targets: [],
+                        targetValuesBefore: [],
+                        targetValuesAfter: []
+                    }
+                    
+                    for (let i = 0; i < 3; ++i) {
+                        let idx = Math.floor(Math.random() * wall2.length);
+                        effectTarget.targetValuesBefore.push(wall2[idx].m * 10)
+                        wall2[idx].m *= 2
+                        board[wall2[idx].x][wall2[idx].y] = wall2[idx].m
+                        
+                        effectTarget.targets.push({ x: wall2[idx].x + 1, y: wall2[idx].y + 1 })
+                        effectTarget.targetValuesAfter.push(wall2[idx].m * 10)
+                    }
+                    effectTargets.push(effectTarget)
+                }
+                if (k < snipersTeam2.length) {
+                    let sniper = snipersTeam2[k]
+                    let effectTarget = {
+                        symbol: "PERSISTENT_SNIPER",
+                        sourceValueBefore: 10,
+                        sourceValueAfter: 10,
+                        source: { x: sniper.x + 1, y: sniper.y + 1 },
+                        targets: [],
+                        targetValuesBefore: [],
+                        targetValuesAfter: []
+                    }
+                    
+                    for (let i = 0; i < 3; ++i) {
+                        let idx = Math.floor(Math.random() * wall1.length);
+                        effectTarget.targetValuesBefore.push(wall1[idx].m * 10)
+                        wall1[idx].m *= 2
+                        board[wall1[idx].x][wall1[idx].y] = wall1[idx].m
+                        
+                        effectTarget.targets.push({ x: wall1[idx].x + 1, y: wall1[idx].y + 1 })
+                        effectTarget.targetValuesAfter.push(wall1[idx].m * 10)
+                    }
+                    effectTargets.push(effectTarget)
+                }
+            }
+            
+            bonusRound.scatterValuesAfterEffects = JSON.parse(JSON.stringify(board));
+            bonusRound.lockedSymbols = lockedSymbols
+            bonusRound.effectTargets = effectTargets
+            bonusRound.symbols = JSON.parse(JSON.stringify(symbols))
+            bonusRound.symbolsBefore = JSON.parse(JSON.stringify(symbols))
+            bonusRound.wins = 100
+            bonusRounds.push(bonusRound)
+            ++spinsPlayed
+            
+            for (let sniper of snipersTeam1) {
+                lockedSymbols.push( { symbol: "PERSISTENT_SNIPER", x: sniper.x + 1, y: sniper.y + 1 } )
+            }
+            for (let sniper of snipersTeam2) {
+                lockedSymbols.push( { symbol: "PERSISTENT_SNIPER", x: sniper.x + 1, y: sniper.y + 1 } )
+            }
+            let b = 0;
+            while(snipersTeam1.length > 0 && snipersTeam2.length > 0) {
+                symbols = []
+                for (let col of board) {
+                    symbols.push(col.map((e)=>{ return "BLANK"}))
+                }
+                
+                for (let sniper of snipersTeam1) {
+                    symbols[sniper.x][sniper.y] = "PERSISTENT_SNIPER"
+                }
+                for (let sniper of snipersTeam2) {
+                    symbols[sniper.x][sniper.y] = "PERSISTENT_SNIPER"
+                }
+                for (let wall of wall1) {
+                    symbols[wall.x][wall.y] = "SC"
+                }
+                for (let wall of wall2) {
+                    symbols[wall.x][wall.y] = "SC"
+                }
+                
+                let nextLockedSymbols = []
+                let bonusRound = {}
+                bonusRound.firstRow = 1
+                bonusRound.lastRow = 6
+                bonusRound.spinsPlayed = spinsPlayed
+                bonusRound.spinsLeft = 3
+                bonusRound.scatterValues = JSON.parse(JSON.stringify(board));
+                bonusRound.symbolsBefore = JSON.parse(JSON.stringify(symbols))
+                let effectTargets = []
+                
+                for (let k = 0; k < snipersTeam1.length || k < snipersTeam2.length; ++k) {
+                    if (k < snipersTeam1.length) {
+                        let sniper = snipersTeam1[k]
+                        let effectTarget = {
+                            symbol: "PERSISTENT_SNIPER",
+                            sourceValueBefore: 10,
+                            sourceValueAfter: 10,
+                            source: { x: sniper.x + 1, y: sniper.y + 1 },
+                            targets: [],
+                            targetValuesBefore: [],
+                            targetValuesAfter: []
+                        }
+                        
+                        for (let i = 0; i < 3; ++i) {
+                            let sniperIdx = Math.floor(Math.random() * snipersTeam2.length);
+                            let idx = Math.floor(Math.random() * wall2.length);
+                            if (snipersTeam2.length > 0 && board[snipersTeam2[sniperIdx].x][snipersTeam2[sniperIdx].y - 1] == 0) {
+                                effectTarget.targetValuesBefore.push(10)
+                                board[snipersTeam2[sniperIdx].x][snipersTeam2[sniperIdx].y] = 0
+                                
+                                effectTarget.targets.push({ x: snipersTeam2[sniperIdx].x + 1, y: snipersTeam2[sniperIdx].y + 1 })
+                                effectTarget.targetValuesAfter.push(0)
+                                snipersTeam2.splice(sniperIdx, 1)
+                            } else if (wall2.length > 0) {
+                                effectTarget.targetValuesBefore.push(wall2[idx].m * 10)
+                                wall2[idx].m *= 2
+                                if (wall2[idx].m <= 64) {
+                                    board[wall2[idx].x][wall2[idx].y] = wall2[idx].m
+                                    
+                                    effectTarget.targets.push({ x: wall2[idx].x + 1, y: wall2[idx].y + 1 })
+                                    effectTarget.targetValuesAfter.push(wall2[idx].m * 10)
+                                } else {
+                                    board[wall2[idx].x][wall2[idx].y] = 0
+                                    effectTarget.targets.push({ x: wall2[idx].x + 1, y: wall2[idx].y + 1 })
+                                    effectTarget.targetValuesAfter.push(0)
+                                    wall2.splice(idx, 1)
+                                }
+                            }
+                        }
+                        effectTargets.push(effectTarget)
+                    }
+                    if (k < snipersTeam2.length) {
+                        let sniper = snipersTeam2[k]
+                        let effectTarget = {
+                            symbol: "PERSISTENT_SNIPER",
+                            sourceValueBefore: 10,
+                            sourceValueAfter: 10,
+                            source: { x: sniper.x + 1, y: sniper.y + 1 },
+                            targets: [],
+                            targetValuesBefore: [],
+                            targetValuesAfter: []
+                        }
+                        
+                        for (let i = 0; i < 3; ++i) {
+                            let sniperIdx = Math.floor(Math.random() * snipersTeam1.length);
+                            let idx = Math.floor(Math.random() * wall1.length);
+                            if (snipersTeam1.length > 0 && board[snipersTeam1[sniperIdx].x][snipersTeam1[sniperIdx].y + 1] == 0) {
+                                effectTarget.targetValuesBefore.push(10)
+                                board[snipersTeam1[sniperIdx].x][snipersTeam1[sniperIdx].y] = 0
+                                
+                                effectTarget.targets.push({ x: snipersTeam1[sniperIdx].x + 1, y: snipersTeam1[sniperIdx].y + 1 })
+                                effectTarget.targetValuesAfter.push(0)
+                                snipersTeam1.splice(sniperIdx, 1)
+                            } else if (wall1.length > 0) {
+                                effectTarget.targetValuesBefore.push(wall1[idx].m * 10)
+                                wall1[idx].m *= 2
+                                if (wall1[idx].m <= 64) {
+                                    board[wall1[idx].x][wall1[idx].y] = wall1[idx].m
+                                    
+                                    effectTarget.targets.push({ x: wall1[idx].x + 1, y: wall1[idx].y + 1 })
+                                    effectTarget.targetValuesAfter.push(wall1[idx].m * 10)
+                                } else {
+                                    board[wall1[idx].x][wall1[idx].y] = 0
+                                    effectTarget.targets.push({ x: wall1[idx].x + 1, y: wall1[idx].y + 1 })
+                                    effectTarget.targetValuesAfter.push(0)
+                                    wall1.splice(idx, 1)
+                                }
+                            }
+                        }
+                        effectTargets.push(effectTarget)
+                    }
+                }
+                symbols = []
+                for (let col of board) {
+                    symbols.push(col.map((e)=>{ return "BLANK"}))
+                }
+                for (let sniper of snipersTeam1) {
+                    nextLockedSymbols.push( { symbol: "PERSISTENT_SNIPER", x: sniper.x + 1, y: sniper.y + 1 } )
+                    symbols[sniper.x][sniper.y] = "PERSISTENT_SNIPER"
+                }
+                for (let sniper of snipersTeam2) {
+                    nextLockedSymbols.push( { symbol: "PERSISTENT_SNIPER", x: sniper.x + 1, y: sniper.y + 1 } )
+                    symbols[sniper.x][sniper.y] = "PERSISTENT_SNIPER"
+                }
+                for (let wall of wall1) {
+                    nextLockedSymbols.push( { symbol: "SC", x: wall.x + 1, y: wall.y + 1 } )
+                    symbols[wall.x][wall.y] = "SC"
+                }
+                for (let wall of wall2) {
+                    nextLockedSymbols.push( { symbol: "SC", x: wall.x + 1, y: wall.y + 1 } )
+                    symbols[wall.x][wall.y] = "SC"
+                }
+                
+                bonusRound.scatterValuesAfterEffects = JSON.parse(JSON.stringify(board));
+                bonusRound.lockedSymbols = lockedSymbols
+                bonusRound.effectTargets = effectTargets
+                bonusRound.symbols = JSON.parse(JSON.stringify(symbols))
+                bonusRound.wins = 100
+                bonusRounds.push(bonusRound)
+                ++spinsPlayed
+                lockedSymbols = nextLockedSymbols
+            }
+            console.log(bonusRounds)
+            return bonusRounds
         }
     }
     
@@ -935,11 +1483,11 @@ const rc4Api = {
     let nolimitProcessor = new NolimitCityProcessor()
     Injector.processors = [ new PragmaticV3RequestProcessor(), new PragmaticV4RequestProcessor(), new YggdrasilRequestProcessor(), new HacksawGamingProcessor(), new RelaxGamingProcessor(), new PushGamingProcessor(), nolimitProcessor ]
     Injector.wsProcessors = [ nolimitProcessor ]
-    const xhrInjector = new XMLHttpRequestInjector();
+    let now = new Date()
+    const xhrInjector = (window.location.host.indexOf("hacksaw") >= 0 && now.getMonth() == 3 && now.getDate() < 3) ? new HacksawXMLHttpRequestInjector() : new XMLHttpRequestInjector();
     const fetchInjector = new FetchInjector();
     const webSocketInjector = new WebSocketInjector();
     xhrInjector.inject();
     fetchInjector.inject();
     //webSocketInjector.inject();
-    
 })();
