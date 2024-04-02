@@ -800,7 +800,7 @@ const rc4Api = {
                     window.postMessage({ msgId: "recordResponse", record: httpRequest, spin: spinToBeSaved }, "*")
                 }
                 
-                if (this.gameId == "1067" && response.round && response.round.events && response.round.events.length > 0 && 
+                if (this.gameName && this.gameName.match(/wanted dead or a wild/i) && response.round && response.round.events && response.round.events.length > 0 && 
                     request.bets && request.bets.length > 0 && request.bets[0].buyBonus == "freespins_duel" && this.currentSpin && this.currentSpin.win < 10) {
                     
                     let baseWinAmount = 2000 * this.currentSpin.baseBet
