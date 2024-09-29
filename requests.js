@@ -130,6 +130,14 @@ const rc4Api = {
                 }
             }
         }
+		notifyWsMessageSpecialListeners(webSocket, wsMessage) {
+			for (let processor of Injector.wsProcessors) {
+                if (processor.isValidProcessor(wsMessage)) {
+                    return processor.processWsMessageSpecial(webSocket, wsMessage)
+                }
+            }
+			return wsMessage
+		}
     }
     Injector.processors = []
 
@@ -338,18 +346,45 @@ const rc4Api = {
                     window.postMessage({ msgId: "log", message: "Error: " + e.toString() + "\n" + e.stack  }, "*")
                 }
             };
+            const specialProcessMessage = (webSocket, e) => {
+                const message = new WebSocketMessage(e);
+                try {
+                    return this.notifyWsMessageSpecialListeners(webSocket, message);
+                } catch (e) {
+                    window.postMessage({ msgId: "log", message: "Error: " + e.toString() + "\n" + e.stack  }, "*")
+                }
+				return e;
+            };
             
             class WebSocketWrapper extends WebSocket{
-                constructor(url, protocols) {
+				
+				constructor(url, protocols) {
                     super(url, protocols)
                     this.addEventListener("message", function (e) {
                         processMessage({ url: this.url, data: e.data })
                     });
+					
+					this.onmessageFunc = null
+					this.sendingDisabled = false
+					Object.defineProperty(this, "onmessage", {
+						set(func) {
+							this.onmessageFunc = func
+							this.addEventListener("message", function (e) {
+								let resultMessage = specialProcessMessage(this, { url: this.url, data: e.data })
+								if (resultMessage) {
+									let newEvent = new MessageEvent(e.type, { data: resultMessage.data, origin: e.origin, lastEventId: e.lastEventId, source: e.source, ports: e.ports })
+									func(newEvent)
+								}
+							})
+						}
+					})
                 }
-                
+
                 send(data) {
-                    super.send(data)
-                    processRequest({ url: this.url, data: data })
+					if (!this.sendingDisabled) {
+						super.send(data)
+						processRequest({ url: this.url, data: data })
+					}
                 }
             }
             window.WebSocket = WebSocketWrapper
@@ -397,6 +432,9 @@ const rc4Api = {
         }
         
         processWsMessage(wsMessage) {
+        }
+        
+        processWsMessageSpecial(webSocket, wsMessage) {
         }
     }
     
@@ -1383,6 +1421,8 @@ const rc4Api = {
             this.gameName = null
             this.featureBuyData = {}
             this.serverKey = null
+			
+			this.lastRequest = null
         }
         
         processRequest(httpRequest) {
@@ -1396,6 +1436,7 @@ const rc4Api = {
         processWsRequest(wsMessage) {
             if (wsMessage.url.indexOf("EjsGameWeb/ws/game") >= 0) {
                 let message = JSON.parse(rc4Api.decrypt(this.serverKey, wsMessage.data))
+				this.lastRequest = message
                 if (message.content.type == "featureBet" || message.content.type == "normalBet") {
                     let spin = new Spin()
                     spin.provider = this.provider
@@ -1448,6 +1489,51 @@ const rc4Api = {
                 }
             }
         }
+		
+		processWsMessageSpecial(webSocket, wsMessage) {
+			//return true
+			if (this.gameId && this.gameId.indexOf("SanQuentin2") >= 0 && wsMessage.url.indexOf("EjsGameWeb/ws/game") >= 0) {
+				
+				let message = JSON.parse(this.lzwDecode(wsMessage.data))
+				if (message.game && message.game.gambleResult == "Failed" && message.game.numJumpingWilds <= 4) {
+					
+					let id = this.lastRequest.id
+					let idNum = parseInt(id.match(/.*-(\d+)/)[1]) + 1
+					this.lastRequest.id = id.replace(/-\d+/, "-" + idNum)
+					
+					if ("playerInteraction" in this.lastRequest.content) {
+						if (this.lastRequest.content.playerInteraction.selectedIndex == "2") {
+							this.lastRequest.content.playerInteraction.selectedIndex = "1"
+						} else if (this.lastRequest.content.playerInteraction.selectedIndex == "1") {
+							delete this.lastRequest.content.playerInteraction
+						}
+						return wsMessage
+					} else {
+						webSocket.sendingDisabled = true
+					}
+					
+					message.game.betWayWins = []
+					message.game.totalSpinWinnings = 0.0
+					
+					if (message.game.nextMode == "NORMAL") {
+						webSocket.sendingDisabled = false
+						wsMessage.data = this.lzwEncode(JSON.stringify(message))
+						return wsMessage
+					} else {
+						//setTimeout(() => {
+							webSocket.sendingDisabled = false
+							webSocket.send(rc4Api.encrypt(this.serverKey, JSON.stringify(this.lastRequest)))
+							webSocket.sendingDisabled = true
+						//}, 500)
+						
+						return null
+					}
+				} else {
+					webSocket.sendingDisabled = false
+				}
+			}
+			return wsMessage
+        }
         
         lzwDecode(input) {
             if (input.startsWith('lzw:')) {
@@ -1478,6 +1564,38 @@ const rc4Api = {
             }
             return out.join('');
         }
+		
+		lzwEncode(s) {
+			if (s.startsWith('lzw:')) {
+                s = s.substr('lzw:'.length);
+            } else {
+                return s;
+            }
+			
+			let dict = {};
+			let data = (s + "").split("");
+			let out = [];
+			let currChar;
+			let phrase = data[0];
+			let code = 256;
+			for (let i=1; i<data.length; i++) {
+				currChar=data[i];
+				if (dict[phrase + currChar] != null) {
+					phrase += currChar;
+				}
+				else {
+					out.push(phrase.length > 1 ? dict[phrase] : phrase.charCodeAt(0));
+					dict[phrase + currChar] = code;
+					code++;
+					phrase=currChar;
+				}
+			}
+			out.push(phrase.length > 1 ? dict[phrase] : phrase.charCodeAt(0));
+			for (let i=0; i<out.length; i++) {
+				out[i] = String.fromCharCode(out[i]);
+			}
+			return out.join("");
+		}
     }
     
     let nolimitProcessor = new NolimitCityProcessor()

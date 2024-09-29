@@ -1,0 +1,38 @@
+ - Set recordingActive to false in requests.js
+ - Hide the Clear DB and Delete DB buttons on index.html
+ - Hide the response log on index.html
+ - turn off debug logging
+ - remove localhost from manifest.json
+ 
+ 
+ 
+"web_accessible_resources": [{
+        "resources": ["requests.js", "slots.js", "currencies.js", "launchers.js"],
+        "matches": [
+            "*://*.pragmaticplay.net/*",
+            "*://*.yggdrasilgaming.com/*",
+            "*://*.hacksawgaming.com/*",
+            "*://*.localhost/*"
+        ]
+    }],
+
+"content_scripts": [
+    {
+        "matches": [
+            "*://*.pragmaticplay.net/gs2c/html5Game.do*",
+            "*://*.pragmaticplay.net/gs2c/common/games-html5/games/vs/*/*.html*",
+            "*://*.yggdrasilgaming.com/slots/*/*",
+            "*://*.yggdrasilgaming.com/app/*/*",
+            "*://*.yggdrasilgaming.com/init/launchClient.html*",
+            "*://*.hacksawgaming.com/*/*/index.html*",
+            "*://*.localhost/slotstats_tester/*"
+        ],
+        "run_at": "document_start",
+        "all_frames": true,
+        "js": [
+            "inject.js"
+        ]
+    }],
+    
+    
+Players can keep better track of their wins and losses using this extension. Currently supported game providers include Hacksaw gaming, Pragmatic Play and Yggdrasil Gaming.

@@ -12,7 +12,8 @@
     
     "host_permissions": [
         "*://*.skin.club/*",
-        "*://*.hacksawgaming.com/*"
+        "*://*.hacksawgaming.com/*",
+        "*://d2oc8r72icrxft.cloudfront.net/*"
     ],
     
     "declarative_net_request" : {
@@ -47,7 +48,13 @@
             "launchers.js",
             "icons/footer-bg.CTQnNjd-.png",
             "icons/footer-bg-desktop.BG0i3vM6.png",
-            "res/usti.webm"],
+            "res/usti.webm",
+            "res/nye.webm",
+            "res/csinald.webm",
+            "res/eu.webm",
+            "res/jonapot.webm",
+            "res/jonapot2.webm",
+            "res/sziasztok.webm"],
         "matches": [
             "*://*.pragmaticplay.net/*",
             "*://*.ppgames.net/*",
@@ -58,6 +65,7 @@
             "*://*.relaxg.net/*",
             "*://*.sidetechnology.co/*",
             "*://d2drhksbtcqozo.cloudfront.net/*",
+            "*://d2oc8r72icrxft.cloudfront.net/*",
             "*://*.pushgaming.com/*",
             "*://*.nolimitcdn.com/*",
             "*://*.nolimitcity.com/*",

@@ -4,7 +4,115 @@
         "priority": 1,
         "action": { "type": "redirect", "redirect": { "extensionPath": "/res/usti.webm" } },
         "condition": {
-            "urlFilter": "*://*.hacksawgaming.com/*/*/assets/default/common/sound/cash_register.webm",
+            "urlFilter": "*/assets/default/common/sound/cash_register.webm",
+            "resourceTypes": ["xmlhttprequest"]
+        }
+    },
+	{
+        "id": 4,
+        "priority": 1,
+        "action": { "type": "redirect", "redirect": { "extensionPath": "/res/nye.webm" } },
+        "condition": {
+            "urlFilter": "*/assets/default/common/sound/infuriated_1.webm",
+            "resourceTypes": ["xmlhttprequest"]
+        }
+    },
+	{
+        "id": 5,
+        "priority": 1,
+        "action": { "type": "redirect", "redirect": { "extensionPath": "/res/eu.webm" } },
+        "condition": {
+            "urlFilter": "*/assets/default/common/sound/infuriated_2.webm",
+            "resourceTypes": ["xmlhttprequest"]
+        }
+    },
+	{
+        "id": 6,
+        "priority": 1,
+        "action": { "type": "redirect", "redirect": { "extensionPath": "/res/eu.webm" } },
+        "condition": {
+            "urlFilter": "*/assets/default/common/sound/infuriated_3.webm",
+            "resourceTypes": ["xmlhttprequest"]
+        }
+    },
+	{
+        "id": 7,
+        "priority": 1,
+        "action": { "type": "redirect", "redirect": { "extensionPath": "/res/nye.webm" } },
+        "condition": {
+            "urlFilter": "*/assets/default/common/sound/fuming_1.webm",
+            "resourceTypes": ["xmlhttprequest"]
+        }
+    },
+	{
+        "id": 8,
+        "priority": 1,
+        "action": { "type": "redirect", "redirect": { "extensionPath": "/res/nye.webm" } },
+        "condition": {
+            "urlFilter": "*/assets/default/common/sound/fuming_2.webm",
+            "resourceTypes": ["xmlhttprequest"]
+        }
+    },
+	{
+        "id": 9,
+        "priority": 1,
+        "action": { "type": "redirect", "redirect": { "extensionPath": "/res/nye.webm" } },
+        "condition": {
+            "urlFilter": "*/assets/default/common/sound/fuming_3.webm",
+            "resourceTypes": ["xmlhttprequest"]
+        }
+    },
+	{
+        "id": 10,
+        "priority": 1,
+        "action": { "type": "redirect", "redirect": { "extensionPath": "/res/csinald.webm" } },
+        "condition": {
+            "urlFilter": "*/assets/default/common/sound/raccoon_raging_1.webm",
+            "resourceTypes": ["xmlhttprequest"]
+        }
+    },
+	{
+        "id": 11,
+        "priority": 1,
+        "action": { "type": "redirect", "redirect": { "extensionPath": "/res/csinald.webm" } },
+        "condition": {
+            "urlFilter": "*/assets/default/common/sound/raccoon_raging_2.webm",
+            "resourceTypes": ["xmlhttprequest"]
+        }
+    },
+	{
+        "id": 12,
+        "priority": 1,
+        "action": { "type": "redirect", "redirect": { "extensionPath": "/res/csinald.webm" } },
+        "condition": {
+            "urlFilter": "*/assets/default/common/sound/raccoon_raging_3.webm",
+            "resourceTypes": ["xmlhttprequest"]
+        }
+    },
+	{
+        "id": 13,
+        "priority": 1,
+        "action": { "type": "redirect", "redirect": { "extensionPath": "/res/jonapot.webm" } },
+        "condition": {
+            "urlFilter": "*/assets/default/common/sound/raccoon_welcome_1.webm",
+            "resourceTypes": ["xmlhttprequest"]
+        }
+    },
+	{
+        "id": 14,
+        "priority": 1,
+        "action": { "type": "redirect", "redirect": { "extensionPath": "/res/jonapot2.webm" } },
+        "condition": {
+            "urlFilter": "*/assets/default/common/sound/raccoon_welcome_2.webm",
+            "resourceTypes": ["xmlhttprequest"]
+        }
+    },
+	{
+        "id": 15,
+        "priority": 1,
+        "action": { "type": "redirect", "redirect": { "extensionPath": "/res/sziasztok.webm" } },
+        "condition": {
+            "urlFilter": "*/assets/default/common/sound/raccoon_welcome_3.webm",
             "resourceTypes": ["xmlhttprequest"]
         }
     }
