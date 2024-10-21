@@ -513,7 +513,10 @@ $(document).ready(function () {
                     return (row.free_bonus_count > 0) ? (data / row.free_bonus_count).toFixed(2) : data;
                 } },
                 { data: 'bought_bonus_count' },
-                { data: 'free_bonus_count' }
+                { data: 'free_bonus_count' },
+                { data: 'last_played', render: function(data, type, row) {
+                    return new Date(data).toLocaleString("hu-HU");
+                } }
             ],
             paging: false,
             info: false,
@@ -553,7 +556,10 @@ $(document).ready(function () {
                     return (row.free_bonus_count > 0) ? (data / row.free_bonus_count).toFixed(2) : data;
                 } },
                 { data: 'bought_bonus_count' },
-                { data: 'free_bonus_count' }
+                { data: 'free_bonus_count' },
+                { data: 'last_played', render: function(data, type, row) {
+                    return new Date(data).toLocaleString("hu-HU");
+                } }
             ],
             paging: false,
             info: false,

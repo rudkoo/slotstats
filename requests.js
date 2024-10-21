@@ -1446,6 +1446,7 @@ const rc4Api = {
                     spin.currency = this.currency
                     spin.baseBet = parseFloat(message.content.bet)
                     spin.isFreeBonus = false
+                    spin.timestamp = new Date().getTime()
                     
                     if (message.content.type == "featureBet") {
                         spin.bet = spin.baseBet * this.featureBuyData[message.content.featureName]
