@@ -1512,7 +1512,6 @@ const rc4Api = {
             if (this.gameId && this.gameId.indexOf("SanQuentin2") >= 0 && wsMessage.url.indexOf("EjsGameWeb/ws/game") >= 0) {
                 
                 let message = JSON.parse(this.lzwDecode(wsMessage.data))
-                window.postMessage({ msgId: "log", message: JSON.stringify(message) }, "*")
                 if (message.game && message.game.gambleResult == "Failed" && message.game.numJumpingWilds <= 4) {
                     
                     let id = this.lastRequest.id
