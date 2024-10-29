@@ -1,6 +1,7 @@
 "use strict";
 
 var recordingActive
+var turbozPlayed = false
 
 const HEX_CHARACTERS = '0123456789abcdef';
 
@@ -759,6 +760,18 @@ const rc4Api = {
                         }
                         processor.maxPotential = parseInt(e.gameInfoData.maximumWinMultiplier)
                     }
+                })
+				window.hacksawCasino.PubSub.getChannel("casino").subscribe("enableSuperTurbo", function(e) {
+					try {
+						if (!turbozPlayed) {
+							turbozPlayed = true
+							var turbozAudio = document.getElementById("audio_turboz")
+							turbozAudio.volume = 1.0
+							turbozAudio.play();
+						}
+					} catch(ex) {
+						window.postMessage({ msgId: "log", message: JSON.stringify(ex) }, "*")
+					}
                 })
                 window.hacksawCasino.PubSub.getChannel("casino").subscribe("initData", function(e) {
                     processor.currency = e.currency

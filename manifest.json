@@ -48,7 +48,8 @@
             "launchers.js",
             "icons/footer-bg.CTQnNjd-.png",
             "icons/footer-bg-desktop.BG0i3vM6.png",
-            "res/usti.webm"],
+            "res/usti.webm",
+            "res/szet.webm"],
         "matches": [
             "*://*.pragmaticplay.net/*",
             "*://*.ppgames.net/*",
