@@ -6,6 +6,9 @@ let lastActiveProviderName = null
 let lastActiveGameMaxPotential = null
 let debugLogging = false
 let registeredGames = {}
+let overallStatsPorts = []
+let sessionStatsPorts = []
+let activeGamePorts = []
 
 function createDatabase() {
     const request = indexedDB.open('slotstatsDb', 1);
@@ -162,14 +165,16 @@ function clearDatabase() {
     clearObjectStore("active_games")
 }
 
-function getSettings() {
+function getSettings(responsePort) {
     getRecord('settings', 0).then((settings) => {
         if (!settings) {
             settings = {}
             settings.backgroundColor = "#212766"
             settings.fontColor = "#FFFFFF"
         } 
-        settingsChanged(settings)
+        try {
+            responsePort.postMessage({ id: "settingsChanged", settings: settings })
+        } catch(e) { console.log(e) }
     })
 }
 
@@ -185,39 +190,49 @@ function setSettings(settings) {
 }
 
 function settingsChanged(settings) {
-    chrome.runtime.sendMessage({ id: "settingsChanged", settings: settings })
+    broadcastMessage(activeGamePorts, { id: "settingsChanged", settings: settings })
 }
 
-function getGameRecords() {
+function getGameRecords(responsePort) {
     getAllRecords("game_stats").then((data) => {
         getAllRecords("fun_game_stats").then((funData) => {
-            chrome.runtime.sendMessage({ id: "reloadRecords", data: data, funData: funData })
+            try {
+                responsePort.postMessage({ id: "reloadRecords", data: data, funData: funData })
+            } catch(e) { console.log(e) }
         })
     })
     getAllRecords("game_bet_stats").then((data) => {
         getAllRecords("fun_game_bet_stats").then((funData) => {
-            chrome.runtime.sendMessage({ id: "reloadBetRecords", data: data, funData: funData })
+            try {
+                responsePort.postMessage({ id: "reloadBetRecords", data: data, funData: funData })
+            } catch(e) { console.log(e) }
         })
     })
 }
 
-function getSessions() {
+function getSessions(responsePort) {
     getAllRecords("sessions").then((sessionsData) => {
-        chrome.runtime.sendMessage({ id: "reloadSessions", data: sessionsData })
+        try {
+            responsePort.postMessage({ id: "reloadSessions", data: sessionsData })
+        } catch(e) { console.log(e) }
     })
 }
 
-function getSessionRecords(sessionId) {
+function getSessionRecords(responsePort, sessionId) {
     
     getRecordsByIndex("session_game_stats", "sessionIdIndex", sessionId).then((gameStatsData) => {
         getRecordsByIndex("session_fun_game_stats", "sessionIdIndex", sessionId).then((funStatsData) => {
-            chrome.runtime.sendMessage({ id: "reloadSessionRecords", sessionId: sessionId, data: gameStatsData, funData: funStatsData })
+            try {
+                responsePort.postMessage({ id: "reloadSessionRecords", sessionId: sessionId, data: gameStatsData, funData: funStatsData })
+            } catch(e) { console.log(e) }
         })
     })
     
     getRecordsByIndex("session_game_bet_stats", "sessionIdIndex", sessionId).then((gameBetData) => {
         getRecordsByIndex("session_fun_game_bet_stats", "sessionIdIndex", sessionId).then((funBetData) => {
-            chrome.runtime.sendMessage({ id: "reloadSessionBetRecords", sessionId: sessionId, data: gameBetData, funData: funBetData })
+            try {
+                responsePort.postMessage({ id: "reloadSessionBetRecords", sessionId: sessionId, data: gameBetData, funData: funBetData })
+            } catch(e) { console.log(e) }
         })
     })
 }
@@ -234,7 +249,7 @@ function dateFormat(date) {
         zeroPadding(date.getMinutes(), 2)
 }
 
-function createNewSession() {
+function createNewSession(responsePort) {
     getRecord('session_info', 0).then((sessionInfo) => {
         if (!sessionInfo) {
             sessionInfo = {}
@@ -250,7 +265,9 @@ function createNewSession() {
                     const sessionObjectStore = sessionTransaction.objectStore("sessions");
                     const sessionUpdateRequest = sessionObjectStore.put(activeSession);
                     sessionUpdateRequest.onsuccess = () => {
-                        chrome.runtime.sendMessage({ id: "updateSession", data: activeSession })
+                        try {
+                            responsePort.postMessage({ id: "updateSession", data: activeSession })
+                        } catch(e) { console.log(e) }
                     }
                 }
             })
@@ -267,7 +284,9 @@ function createNewSession() {
             const sessionObjectStore = sessionTransaction.objectStore("sessions");
             const sessionUpdateRequest = sessionObjectStore.put(sessionRecord);
             sessionUpdateRequest.onsuccess = () => {
-                chrome.runtime.sendMessage({ id: "newSessionCreated", data: sessionRecord })
+                try {
+                    responsePort.postMessage({ id: "newSessionCreated", data: sessionRecord })
+                } catch(e) { console.log(e) }
             }
         }
     })
@@ -342,7 +361,7 @@ function activeGameChanged(activeGameId, activeGameName, activeProviderName, act
     if (debugLogging) {
         console.log("[Slotstats][activeGameChanged]: " + lastActiveGame + ", " + lastActiveGameName + ", " + lastActiveProviderName + ", " + lastActiveGameMaxPotential)
     }
-    chrome.runtime.sendMessage({ id: "activeGameChanged", gameId: lastActiveGame, gameName: lastActiveGameName, providerName: lastActiveProviderName, maxPotential: lastActiveGameMaxPotential })
+    broadcastMessage(activeGamePorts, { id: "activeGameChanged", gameId: lastActiveGame, gameName: lastActiveGameName, providerName: lastActiveProviderName, maxPotential: lastActiveGameMaxPotential })
 }
 
 function roundToFixed(number) {
@@ -420,7 +439,7 @@ function saveSpinToTable(spin, statsTable, betStatsTable, sessionId = null) {
             const objectStore = transaction.objectStore(statsTable);
             const updateRequest = objectStore.put(gameStats);
             updateRequest.onsuccess = () => {
-                chrome.runtime.sendMessage({ id: "updateRecord", isFunGame: spin.isFunGame, gameStats: gameStats, sessionId: sessionId })
+                broadcastMessageToAll({ id: "updateRecord", isFunGame: spin.isFunGame, gameStats: gameStats, sessionId: sessionId })
             }
         })
         
@@ -459,7 +478,7 @@ function saveSpinToTable(spin, statsTable, betStatsTable, sessionId = null) {
             const objectStore = transaction.objectStore(betStatsTable);
             const updateRequest = objectStore.put(betStats);
             updateRequest.onsuccess = () => {
-                chrome.runtime.sendMessage({ id: "updateBetRecord", isFunGame: spin.isFunGame, betStats: betStats, sessionId: sessionId })
+                broadcastMessageToAll({ id: "updateBetRecord", isFunGame: spin.isFunGame, betStats: betStats, sessionId: sessionId })
             }
         })
     } else {
@@ -532,6 +551,82 @@ chrome.windows.onFocusChanged.addListener(
     }
 )
 
+function broadcastMessage(ports, msg) {
+    let disconnectedPorts = []
+    for (let i = 0; i < ports.length; ++i) {
+        try {
+            ports[i].postMessage(msg)
+        } catch(e) {
+            disconnectedPorts.push(i)
+        }
+    }
+    for (let i = disconnectedPorts.length - 1; i >= 0; --i) {
+        ports.splice(disconnectedPorts[i], 1)
+    }
+}
+
+function broadcastMessageToAll(msg) {
+    broadcastMessage(activeGamePorts, msg)
+    broadcastMessage(overallStatsPorts, msg)
+    broadcastMessage(sessionStatsPorts, msg)
+}
+
+chrome.runtime.onConnect.addListener(function(port) {
+    
+    if (port.name === "activegame_window") {
+        activeGamePorts.push(port)
+        port.onMessage.addListener(function(msg) {
+            if (msg.id === "saveSettings") {
+                setSettings(msg.settings)
+            } else if (msg.id === 'getSettings') {
+                getSettings(port)
+            } else if (msg.id === "getActiveGame") {
+                if (debugLogging) {
+                    console.log("[Slotstats][activeGame]: " + lastActiveGame + ", " + lastActiveGameName + ", " + lastActiveProviderName + ", " + lastActiveGameMaxPotential)
+                }
+                if (lastActiveGame) {
+                    broadcastMessage(activeGamePorts, { id: "activeGameChanged", gameId: lastActiveGame, gameName: lastActiveGameName, providerName: lastActiveProviderName, maxPotential: lastActiveGameMaxPotential })
+                }
+            }
+            else if (msg.id === "getRecords") {
+                getGameRecords(port)
+            }
+        });
+    }
+    
+    if (port.name === "overallstats_tab") {
+        overallStatsPorts.push(port)
+        port.onMessage.addListener(function(msg) {
+            if (msg.id === "getRecords") {
+                getGameRecords(port)
+            }
+            else if (msg.id === "clearDatabase") {
+                clearDatabase()
+            }
+            else if (msg.id === "deleteDatabase") {
+                console.log("Deleting database")
+                indexedDB.deleteDatabase('slotstatsDb');
+            }
+        });
+    }
+    
+    if (port.name === "sessionstats_tab") {
+        sessionStatsPorts.push(port)
+        port.onMessage.addListener(function(msg) {
+            if (msg.id === "getSessionRecords") {
+                getSessionRecords(port, parseInt(msg.sessionId))
+            } else if (msg.id === "createNewSession") {
+                createNewSession(port)
+            } else if (msg.id === 'endCurrentSession') {
+                endCurrentSession()
+            } else if (msg.id === "getSessions") {
+                getSessions(port)
+            }
+        });
+    }
+});
+
+
 chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
     
     if (debugLogging) {
@@ -544,34 +639,8 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
         }
         registerGame(sender.tab.id, msg.gameId, msg.gameName, msg.providerName, msg.maxPotential)
         activeGameChanged(msg.gameId, msg.gameName, msg.providerName, msg.maxPotential)
-    } else if (msg.id === 'registerStatsPage') {
-        if (debugLogging) {
-            console.log("[Slotstats][registerStatsPage]: " + lastActiveGame + ", " + lastActiveGameName + ", " + lastActiveProviderName + ", " + lastActiveGameMaxPotential)
-        }
-        if (lastActiveGame) {
-            chrome.runtime.sendMessage({ id: "activeGameChanged", gameId: lastActiveGame, gameName: lastActiveGameName, providerName: lastActiveProviderName, maxPotential: lastActiveGameMaxPotential })
-        }
     } else if (msg.id === 'saveSpin') {
         saveSpin(msg.data)
-    } else if (msg.id === 'getRecords') {
-        getGameRecords()
-    } else if (msg.id === 'clearDatabase') {
-        clearDatabase()
-    } else if (msg.id === 'deleteDatabase') {
-        console.log("Deleting database")
-        indexedDB.deleteDatabase('slotstatsDb');
-    } else if (msg.id === 'getSettings') {
-        getSettings()
-    } else if (msg.id === 'saveSettings') {
-        setSettings(msg.settings)
-    } else if (msg.id === 'getSessions') {
-        getSessions()
-    } else if (msg.id === 'getSessionRecords') {
-        getSessionRecords(parseInt(msg.sessionId))
-    } else if (msg.id === 'createNewSession') {
-        createNewSession()
-    } else if (msg.id === 'endCurrentSession') {
-        endCurrentSession()
     } else if (msg.id === 'exportRecords') {
         exportRecords()
     }

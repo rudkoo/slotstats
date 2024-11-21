@@ -15,14 +15,18 @@ var activeProviderName = null
 var activeGameMaxPotential= null
 var responseCounter = 1
 var debugLogging = false
+var port = null
 
-function messageHandler(msg, sender, sendResponse) {
+function portMessageHandler(msg) {
     
     if (debugLogging) {
-        console.log("### index.js::messageHandler: " + msg.id);
+        console.log("### index.js::portMessageHandler: " + msg.id);
     }
     
-    if (msg.id == "activeGameChanged") {
+    if (msg.id == "settingsChanged") {
+        updateSettings(msg.settings)
+    } else if (msg.id == "activeGameChanged") {
+        console.log("### index.js::activeGameChanged: " + msg.gameId);
         activeGameChanged(msg.gameId, msg.gameName, msg.providerName, msg.maxPotential)
     } else if (msg.id == "updateRecord") {
         updateRecord(msg.gameStats, msg.isFunGame, msg.sessionId)
@@ -38,8 +42,6 @@ function messageHandler(msg, sender, sendResponse) {
             reloadBetRecords(msg.data, msg.funData)
             updateOverallTable()
         }
-    } else if (msg.id == "settingsChanged") {
-        updateSettings(msg.settings)
     } else if (msg.id == "reloadSessions") {
         reloadSessions(msg.data)
     } else if (msg.id == "reloadSessionRecords") {
@@ -53,8 +55,25 @@ function messageHandler(msg, sender, sendResponse) {
     } else if (msg.id == "recordResponse") {
         logResponse(msg.data, msg.spin)
     }
-    
-    sendResponse()
+}
+
+function connectPort() {
+    let portName
+    if (document.getElementById('slot_stats')) {
+        portName = (document.getElementById("currentSession")) ? "sessionstats_tab" : "overallstats_tab"
+    } else {
+        portName = "activegame_window"
+    }
+    port = chrome.runtime.connect(chrome.runtime.id, { name: portName });
+    port.onMessage.addListener(portMessageHandler)
+    port.onDisconnect.addListener(portDisconnectHandler)
+}
+
+function portDisconnectHandler() {
+    console.log("### Port disconnected")
+    setTimeout(() => {
+        connectPort()
+    }, 1000)
 }
 
 function hexToRgbA(hex){
@@ -126,15 +145,15 @@ function saveSettings() {
     let fontColorPicker = document.getElementById("fontColor")
     let backgroundColorPicker = document.getElementById("backgroundColor")
     let settings = { windowColor: windowColorPicker.value, backgroundColor: backgroundColorPicker.value, fontColor: fontColorPicker.value }
-    chrome.runtime.sendMessage({ id: "saveSettings", settings: settings }, function() {});
+    port.postMessage({ id: "saveSettings", settings: settings })
 }
 
 function clearDatabase() {
-    chrome.runtime.sendMessage({ id: "clearDatabase" }, function() {});
+    port.postMessage({ id: "clearDatabase" })
 }
 
 function deleteDatabase() {
-    chrome.runtime.sendMessage({ id: "deleteDatabase" }, function() {});
+    port.postMessage({ id: "deleteDatabase" })
 }
 
 function getMostValuableWin(betStats) {
@@ -382,7 +401,7 @@ function selectSession(index) {
         let options = $('#currentSession').children()
         if (index >= 0 && index < options.length) {
             options[index].selected = 'selected'
-            chrome.runtime.sendMessage({ id: "getSessionRecords", sessionId: options[index].value }, function() {});
+            port.postMessage({ id: "getSessionRecords", sessionId: options[index].value })
         }
     }
 }
@@ -417,7 +436,7 @@ function reloadSessionBetRecords(statsData, funStatsData, sessionId) {
 }
 
 function createNewSession() {
-    chrome.runtime.sendMessage({ id: "createNewSession" }, function() {});
+    port.postMessage({ id: "createNewSession" })
 }
 
 function newSessionCreated(newSession) {
@@ -446,11 +465,6 @@ function logResponse(data, spin) {
         ++responseCounter
     }
 }
-
-window.addEventListener('load', (event) => {
-    //document.getElementById("colorValue").addEventListener("input", function() { updateColor() })
-    //chrome.runtime.sendMessage({ id: "registerStatsPage" }, function() {});
-});
 
 function format(rowData, betStats) {
     let result = 
@@ -601,6 +615,7 @@ $(document).ready(function () {
     let deleteDbButton = document.getElementById("deleteDb")
     let createSessionButton = document.getElementById("createSession")
     let currentSession = document.getElementById("currentSession")
+    connectPort()
     
     if (windowColorInput) {
         windowColorInput.addEventListener("input", function() { updateColor() })
@@ -623,15 +638,16 @@ $(document).ready(function () {
     if (createSessionButton) {
         createSessionButton.addEventListener("click", function() { createNewSession() })
     }
-    chrome.runtime.onMessage.addListener(messageHandler);
-    chrome.runtime.sendMessage({ id: "registerStatsPage" }, function() {});
-    chrome.runtime.sendMessage({ id: "getRecords" }, function() {});
-    chrome.runtime.sendMessage({ id: "getSettings" }, function() {});
+    
+    port.postMessage({ id: "getActiveGame" })
+    port.postMessage({ id: "getRecords" })
+    port.postMessage({ id: "getSettings" })
+    
     if (currentSession) {
         isSessionPage = true
-        chrome.runtime.sendMessage({ id: "getSessions" }, function() {});
+        port.postMessage({ id: "getSessions" })
         currentSession.addEventListener("change", function() {
-            chrome.runtime.sendMessage({ id: "getSessionRecords", sessionId: currentSession.value }, function() {});
+            port.postMessage({ id: "getSessionRecords", sessionId: currentSession.value })
         })
     }
 });

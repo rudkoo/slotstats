@@ -715,7 +715,11 @@ const rc4Api = {
                 ".*://.*.jtmmizms.net/gs2c/v3/gameService.*",
                 ".*://.*.jtmmizms.net/gs2c/ge/v3/gameService.*",
                 ".*://.*.jzwidrtl.net/gs2c/v3/gameService.*",
-                ".*://.*.jzwidrtl.net/gs2c/ge/v3/gameService.*"
+                ".*://.*.jzwidrtl.net/gs2c/ge/v3/gameService.*",
+                ".*://.*.pafdeixcon.net/gs2c/v3/gameService.*",
+                ".*://.*.pafdeixcon.net/gs2c/ge/v3/gameService.*",
+                ".*://.*.*.net/gs2c/v3/gameService.*",
+                ".*://.*.*.net/gs2c/ge/v3/gameService.*"
             ]
         }
     }
@@ -732,15 +736,27 @@ const rc4Api = {
                 ".*://.*.jtmmizms.net/gs2c/v4/gameService.*",
                 ".*://.*.jtmmizms.net/gs2c/ge/v4/gameService.*",
                 ".*://.*.jzwidrtl.net/gs2c/v4/gameService.*",
-                ".*://.*.jzwidrtl.net/gs2c/ge/v4/gameService.*"
+                ".*://.*.jzwidrtl.net/gs2c/ge/v4/gameService.*",
+                ".*://.*.pafdeixcon.net/gs2c/v4/gameService.*",
+                ".*://.*.pafdeixcon.net/gs2c/ge/v4/gameService.*",
+                ".*://.*.*.net/gs2c/v4/gameService.*",
+                ".*://.*.*.net/gs2c/ge/v4/gameService.*"
             ]
         }
     }
     
+    // DuelAtDawn max win, 2nd bonus: https://replay.hacksawgaming.com/?roundid=1008005443548&partner=690&language=en
     class HacksawGamingProcessor extends RequestProcessor {
         constructor() {
             super()
-            this.uriPatterns = [".*://.*.hacksawgaming.com/api/play/bet.*", ".*://.*.hacksawgaming.com/api/play/gameLaunch.*"]
+            this.uriPatterns = [
+                ".*://.*.hacksawgaming.com/api/play/bet.*",
+                ".*://.*.hacksawgaming.com/api/play/gameLaunch.*",
+                ".*://.*.cloudfront.net/api/play/bet.*",
+                ".*://.*.cloudfront.net/api/play/gameLaunch.*",
+                ".*://.*.cloudfront.net/demo/api/play/bet.*",
+                ".*://.*.cloudfront.net/demo/api/play/gameLaunch.*"
+            ]
             this.provider = "Hacksaw Gaming"
             this.decoder = new TextDecoder()
             this.currentSpin = null
@@ -750,6 +766,8 @@ const rc4Api = {
             this.gameName = null
             this.featureBuyData = {}
             this.maxPotential = null
+            this.specialSpins = 0
+            this.specialBonusPlayed = false
             let processor = this
             
             if (window.hacksawCasino) {
@@ -761,17 +779,17 @@ const rc4Api = {
                         processor.maxPotential = parseInt(e.gameInfoData.maximumWinMultiplier)
                     }
                 })
-				window.hacksawCasino.PubSub.getChannel("casino").subscribe("enableSuperTurbo", function(e) {
-					try {
-						if (!turbozPlayed) {
-							turbozPlayed = true
-							var turbozAudio = document.getElementById("audio_turboz")
-							turbozAudio.volume = 1.0
-							turbozAudio.play();
-						}
-					} catch(ex) {
-						window.postMessage({ msgId: "log", message: JSON.stringify(ex) }, "*")
-					}
+                window.hacksawCasino.PubSub.getChannel("casino").subscribe("enableSuperTurbo", function(e) {
+                    try {
+                        if (!turbozPlayed) {
+                            turbozPlayed = true
+                            var turbozAudio = document.getElementById("audio_turboz")
+                            turbozAudio.volume = 1.0
+                            turbozAudio.play();
+                        }
+                    } catch(ex) {
+                        window.postMessage({ msgId: "log", message: JSON.stringify(ex) }, "*")
+                    }
                 })
                 window.hacksawCasino.PubSub.getChannel("casino").subscribe("initData", function(e) {
                     processor.currency = e.currency
@@ -784,7 +802,7 @@ const rc4Api = {
         }
         
         getBonusEnterEvent(spinInfo) {
-            if (spinInfo.round.events) {
+            if (spinInfo.round && spinInfo.round.events) {
                 for (let eventItem of spinInfo.round.events) {
                     if (eventItem.etn == "feature_enter") {
                         return eventItem
@@ -848,11 +866,11 @@ const rc4Api = {
                     }
                 }
                 
-                if (response.round.events.length > 0 && "awa" in response.round.events[response.round.events.length - 1]) {
+                if (response.round && response.round.events.length > 0 && "awa" in response.round.events[response.round.events.length - 1]) {
                     this.currentSpin.win = parseInt(response.round.events[response.round.events.length - 1].awa) / 100
                 }
                 
-                if (response.round.status && response.round.status.match(/completed/i)) {
+                if (response.round && response.round.status && response.round.status.match(/completed/i)) {
                     this.currentSpin.multiplier = this.currentSpin.win / this.currentSpin.baseBet
                     this.currentSpin.timestamp = new Date(response.serverTime).getTime()
                     spinToBeSaved = this.currentSpin
@@ -867,149 +885,240 @@ const rc4Api = {
                     window.postMessage({ msgId: "recordResponse", record: httpRequest, spin: spinToBeSaved }, "*")
                 }
                 
-                if (this.gameName && this.gameName.match(/wanted dead or a wild/i) && response.round && response.round.events && response.round.events.length > 0 && 
-                    request.bets && request.bets.length > 0 && request.bets[0].buyBonus == "freespins_duel" && this.currentSpin && this.currentSpin.win < 10) {
+                // Wanted script
+                //let totalWin = 25000000
+                
+                // Duel at Dawn
+                let totalWin = 22500000
+                
+                let encoder = new TextEncoder()
+                
+                if (this.gameName && this.gameName.match(/duel at dawn/i) && response.accountBalance &&  this.specialBonusPlayed) {
+                    response.accountBalance.balance = (parseInt(response.accountBalance.balance, 10) + totalWin) + ""
+                    let newResponse = encoder.encode(JSON.stringify(response))
+                    return newResponse
+                }
+                
+                if (this.gameName && this.gameName.match(/duel at dawn/i) && response.round && response.round.events && response.round.events.length > 0 && 
+                    request.bets && request.bets.length > 0 && parseInt(request.bets[0].betAmount) == 1500 && !this.specialBonusPlayed) {
                     
-                    let baseWinAmount = 2000 * this.currentSpin.baseBet
-                    let winAmount = baseWinAmount * 10
+                    this.specialSpins += 1
+                    if (this.specialSpins <= 1) {
+                        return null
+                    }
+                    
+                    // Wanted script
+                    //let baseWinAmount = 20 * parseInt(request.bets[0].betAmount)  // Wanted
+                    //let winAmount = baseWinAmount * 59
+                    
+                    // Duel at Dawn
+                    let baseWinAmount = 10 * parseInt(request.bets[0].betAmount)
+                    let winAmount = baseWinAmount * 120
                     baseWinAmount += ""
                     winAmount += ""
-                    let encoder = new TextEncoder()
-                    let rounds = [
-                        {
-                            "grid": "--3+/2,232),*.3),*//31*.1(3",
-                            "actions": [
-                                { "at": "duel", "data": { "position": "0", "winner": "2", "loser": "10" } },
-                                { "at": "duel", "data": { "position": "6", "winner": "2", "loser": "20" } },
-                                { "at": "duel", "data": { "position": "12", "winner": "2", "loser": "50" } },
-                                { "at": "duel", "data": { "position": "18", "winner": "2", "loser": "10" } },
-                                { "at": "duel", "data": { "position": "24", "winner": "2", "loser": "25" } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "1111100000000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000011111000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000111110000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000000001111100000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000000000000011111", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "1000001000001000001000001", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000100010001000100010000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "1010101010000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0101010101000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000010101010100000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000001010101010000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000101010101000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000010101010100000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000000001010101010", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000000000101010101", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } }
-                            ]
-                        },
-                        {
-                            "grid": "--333331+/1.1+)2.*+)))-/-))",
-                            "actions": [
-                                { "at": "duel", "data": { "position": "0", "winner": "2", "loser": "25" } },
-                                { "at": "duel", "data": { "position": "1", "winner": "2", "loser": "20" } },
-                                { "at": "duel", "data": { "position": "2", "winner": "2", "loser": "10" } },
-                                { "at": "duel", "data": { "position": "3", "winner": "2", "loser": "50" } },
-                                { "at": "duel", "data": { "position": "4", "winner": "2", "loser": "50" } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "1111100000000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000011111000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000111110000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000000001111100000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000000000000011111", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "1000001000001000001000001", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000100010001000100010000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "1010101010000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0101010101000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000010101010100000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000001010101010000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000101010101000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000010101010100000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000000001010101010", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000000000101010101", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } }
-                            ]
-                        },
-                        {
-                            "grid": "--)).+.+*/+.3333321+1+**+2*",
-                            "actions": [
-                                { "at": "duel", "data": { "position": "10", "winner": "2", "loser": "100" } },
-                                { "at": "duel", "data": { "position": "11", "winner": "2", "loser": "50" } },
-                                { "at": "duel", "data": { "position": "12", "winner": "2", "loser": "25" } },
-                                { "at": "duel", "data": { "position": "13", "winner": "2", "loser": "50" } },
-                                { "at": "duel", "data": { "position": "14", "winner": "2", "loser": "50" } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "1111100000000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000011111000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000111110000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000000001111100000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000000000000011111", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "1000001000001000001000001", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000100010001000100010000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "1010101010000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0101010101000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000010101010100000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000001010101010000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000101010101000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000010101010100000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000000001010101010", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000000000101010101", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } }
-                            ]
-                        },
-                        {
-                            "grid": "--/1*)3.**311.3/113.//3../*",
-                            "actions":[
-                                { "at": "duel", "data": { "position": "20", "winner": "2", "loser": "3" } },
-                                { "at": "duel", "data": { "position": "16", "winner": "2", "loser": "4" } },
-                                { "at": "duel", "data": { "position": "12", "winner": "2", "loser": "10" } },
-                                { "at": "duel", "data": { "position": "8", "winner": "2", "loser": "25" } },
-                                { "at": "duel", "data": { "position": "4", "winner": "2", "loser": "100" } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "1111100000000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000011111000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000111110000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000000001111100000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000000000000011111", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "1000001000001000001000001", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000100010001000100010000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "1010101010000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0101010101000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000010101010100000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000001010101010000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000101010101000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000010101010100000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000000001010101010", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000000000101010101", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } }
-                            ]
-                        },
-                        {
-                            "grid": "--3.-,(1./(31+++0**3+--3+3-",
-                            "actions": [
-                                { "at": "duel", "data": { "position": "0", "winner": "2", "loser": "3" } },
-                                { "at": "duel", "data": { "position": "21", "winner": "2", "loser": "4" } },
-                                { "at": "duel", "data": { "position": "17", "winner": "2", "loser": "10" } },
-                                { "at": "duel", "data": { "position": "23", "winner": "2", "loser": "25" } },
-                                { "at": "duel", "data": { "position": "9", "winner": "2", "loser": "100" } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "1111100000000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000011111000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000111110000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000000001111100000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000000000000011111", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "1000001000001000001000001", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000100010001000100010000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "1010101010000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0101010101000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000010101010100000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000001010101010000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000101010101000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000010101010100000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000000001010101010", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } },
-                                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000000000101010101", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "10" ] } }
-                            ]
-                        }
-                    ]
+                    totalWin += ""
                     
-                    for (let i = 2, j = 0; i < response.round.events.length && j < rounds.length; ++i) {
-                        if (!parseFloat(response.round.events[i].wa) && response.round.events[i].etn == "fs_reveal") {
-                            response.round.events[i].c.grid = rounds[j].grid
-                            response.round.events[i].c.actions = rounds[j].actions
-                            response.round.events[i].wa = parseInt(winAmount) * 15
-                            ++j
+                    ///////////////////////////////////
+                    // *** Wanted script*** //
+                    //
+                    //let additionalEvents = [
+                    //    {
+                    //        "et": 2, "etn": "feature_enter", "en": "0", "ba": "0", "bc": "0", "wa": "0", "wc": "0", "awa": "0", "awc": "0", "c": {
+                    //            "bonusFeatureWon": "freespins_duel",
+                    //            "bonusFeatureCount": "10"
+                    //        }
+                    //    },
+                    //    { "et": 2, "etn": "fs_reveal", "en": "0", "ba": "0", "bc": "0", "wa": "0", "wc": "0", "awa": "0", "awc": "0", "c": {
+                    //            "reelSet": "freespins_duel", "stops": [ "45", "4", "55", "38", "55" ], "grid": "--0**)002*-.01*3.)**0.+0-.+"
+                    //        }
+                    //    },
+                    //    { "et": 2, "etn": "fs_reveal", "en": "0", "ba": "0", "bc": "0", "wa": "0", "wc": "0", "awa": "0", "awc": "0", "c": {
+                    //            "reelSet": "freespins_duel", "stops": [ "32", "35", "55", "52", "13" ], "grid": "---/*.-/**+3.0*1-,)*1-,--10"
+                    //        }
+                    //    },
+                    //    {
+                    //        "et": 2, "etn": "fs_reveal", "en": "0", "ba": "0", "bc": "0", "wa": "0", "wc": "0", "awa": "0", "awc": "0", "c": {
+                    //            "reelSet": "freespins_duel", "stops": [ "53", "35", "30", "23", "46" ], "grid": "--*/1+1)*+11-0+21,)*210-)./"
+                    //        }
+                    //    },
+                    //    {
+                    //        "et": 2, "etn": "fs_reveal", "en": "0", "ba": "0", "bc": "0", "wa": "0", "wc": "0", "awa": "0", "awc": "0", "c": {
+                    //            "reelSet": "freespins_duel", "stops": [ "22", "67", "42", "59", "46" ], "grid": "--/./.1)*+.1)2+.1,)+.1+)0./"
+                    //        }
+                    //    },
+                    //    {
+                    //        "et": 2, "etn": "fs_reveal", "en": "0", "ba": "0", "bc": "0", "wa": "0", "wc": "0", "awa": "0", "awc": "0", "c": {
+                    //            "reelSet": "freespins_duel", "stops": [ "14", "55", "36", "40", "38" ], "grid": "--*),-)22,0/*/,.-*/1*,*,0*,"
+                    //        }
+                    //    },
+                    //    {
+                    //        "et": 2, "etn": "fs_reveal", "en": "0", "ba": "0", "bc": "0", "wa": "0", "wc": "0", "awa": "0", "awc": "0", "c": {
+                    //            "reelSet": "freespins_duel", "stops": [ "51", "11", "20", "8", "1" ], "grid": "--2/.12*/1+-*(1+*).,0/-,,02"
+                    //        }
+                    //    },
+                    //    {
+                    //        "et": 2, "etn": "fs_reveal", "en": "0", "ba": "0", "bc": "0", "wa": "0", "wc": "0", "awa": "0", "awc": "0", "c": {
+                    //            "reelSet": "freespins_duel", "stops": [ "43", "66", "16", "36", "4" ], "grid": "--/./*//./(20*.)2022-/0).-("
+                    //        }
+                    //    },
+                    //    {
+                    //        "et": 2, "etn": "fs_reveal", "en": "0", "ba": "0", "bc": "0", "wa": "0", "wc": "0", "awa": "0", "awc": "0", "c": {
+                    //            "reelSet": "freespins_duel", "stops": [ "43", "47", "49", "11", "51" ], "grid": "--/+/0*/+,0)0+,/101,/-02110"
+                    //        }
+                    //    },
+                    //    {
+                    //        "et": 2, "etn": "fs_reveal", "en": "0", "ba": "0", "bc": "0", "wa": "0", "wc": "0", "awa": "0", "awc": "0", "c": {
+                    //            "reelSet": "freespins_duel", "stops": [ "25", "50", "23", "7", "15"], "grid": "--,1,--+2,1-1+0+01+/+.,*20."
+                    //        }
+                    //    },
+                    //    {
+                    //        "et": 2, "etn": "fs_reveal", "en": "0", "ba": "0", "bc": "0", "wa": "25000000", "wc": "0", "awa": "25000000", "awc": "0", "c": {
+                    //            "actions": [
+                    //                { "at": "duel", "data": { "position": "0", "winner": "9", "loser": "3" } },
+                    //                { "at": "duel", "data": { "position": "21", "winner": "10", "loser": "4" } },
+                    //                { "at": "duel", "data": { "position": "17", "winner": "5", "loser": "10" } },
+                    //                { "at": "duel", "data": { "position": "23", "winner": "10", "loser": "25" } },
+                    //                { "at": "duel", "data": { "position": "9", "winner": "25", "loser": "3" } },
+                    //                { "at": "gridwin", "data": { "winAmount": "0", "symbol": "0", "mask": "1111100000000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "59" ] } },
+                    //                { "at": "gridwin", "data": { "winAmount": "0", "symbol": "0", "mask": "0000011111000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "59" ] } },
+                    //                { "at": "gridwin", "data": { "winAmount": "0", "symbol": "0", "mask": "0000000000111110000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "59" ] } },
+                    //                { "at": "gridwin", "data": { "winAmount": "0", "symbol": "0", "mask": "0000000000000001111100000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "59" ] } },
+                    //                { "at": "gridwin", "data": { "winAmount": "1400000", "symbol": "0", "mask": "0000000000000000000011111", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "59" ] } },
+                    //                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "1000001000001000001000001", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "59" ] } },
+                    //                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000100010001000100010000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "59" ] } },
+                    //                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "1010101010000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "59" ] } },
+                    //                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0101010101000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "59" ] } },
+                    //                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000010101010100000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "59" ] } },
+                    //                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000001010101010000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "59" ] } },
+                    //                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000101010101000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "59" ] } },
+                    //                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000010101010100000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "59" ] } },
+                    //                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000000001010101010", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "59" ] } },
+                    //                { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000000000101010101", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "59" ] } }
+                    //            ],
+                    //            "reelSet": "freespins_duel", "stops": [ "36", "34", "31", "18", "1" ], "grid": "--3.-,(1./(31+++0**3+--3+3-"
+                    //        }
+                    //    },
+                    //    //{ "et": 2, "etn": "max_win_reached", "en": "9", "ba": "0", "bc": "0", "wa": "0", "wc": "0", "awa": "25000000", "awc": "0", "c": null },
+                    //    { "et": 2, "etn": "feature_exit", "en": "0", "ba": "0", "bc": "0", "wa": "0", "wc": "0", "awa": "25000000", "awc": "0", "c": {} }
+                    //]
+                    //let featureWonC = {
+                    //    "actions": [
+                    //        { "at": "gridwin", "data": { "winAmount": "0", "symbol": "12", "mask": "0100001000000000000000001", "count": "3" } },
+                    //        { "at": "bonusfeaturewon", "data": { "bfw": "freespins_duel", "bfc": "10" } }
+                    //    ],
+                    //    "reelSet": "default", "stops": [ "6", "0", "36", "50", "1" ], "grid": "--.40*.,4)*),*)0)0*+0)0,1.4"
+                    //}
+                    
+                    //////////////////////////////////////////
+                    // *** Duel at dawn script*** //
+                    //
+                    let additionalEvents = [
+                        { "et": 2, "etn": "feature_enter", "en": "0", "ba": "0", "bc": "0", "wa": "0", "wc": "0", "awa": "0", "awc": "0", "c": {
+                            "bonusFeatureWon": "fs",
+                            "bonusFeatureCount": "10" }
+                        },
+                        { "et": 2, "etn": "fs_reveal", "en": "0", "ba": "0", "bc": "0", "wa": "0", "wc": "0", "awa": "0", "awc": "0", "c": {
+                                "reelSet": "fs", "stops": [ "28", "55", "31", "99", "5" ], "grid": "--.),))..,)**-*)*1-.*..,*,."
+                            }
+                        },
+                        {
+                            "et": 2, "etn": "fs_reveal", "en": "0", "ba": "0", "bc": "0", "wa": "0", "wc": "0", "awa": "0", "awc": "0", "c": {
+                                "reelSet": "fs", "stops": [ "33", "101", "71", "20", "63" ], "grid": "--)*0**-+)+*-.-*-,.-.+011)*"
+                            }
+                        },
+                        {
+                            "et": 2, "etn": "fs_reveal", "en": "0", "ba": "0", "bc": "0", "wa": "0", "wc": "0", "awa": "0", "awc": "0", "c": {
+                                "reelSet": "fs", "stops": [ "15", "30", "102", "106", "102" ], "grid": "--/),/+/.-**0)+)*.,+0*.+*5,"
+                            }
+                        },
+                        {
+                            "et": 2, "etn": "fs_reveal", "en": "0", "ba": "0", "bc": "0", "wa": "150", "wc": "0", "awa": "150", "awc": "0", "c": {
+                                "actions": [ { "at": "gridwin", "data": { "winAmount": "150", "symbol": "3", "mask": "0000000000101000100000000", "count": "3" } } ],
+                                "reelSet": "fs", "stops": [ "82", "31", "108", "46", "110" ], "grid": "--).,/**),.*+,+*10++0/1,,)-"
+                            }
+                        },
+                        {
+                            "et": 2, "etn": "fs_reveal", "en": "0", "ba": "0", "bc": "0", "wa": "0", "wc": "0", "awa": "150", "awc": "0", "c": {
+                                "reelSet": "fs", "stops": [ "13", "103", "75", "102", "6" ], "grid": "---.1**,.*,*/1,)./)/+.0)./5"
+                            }
+                        },
+                        {
+                            "et": 2, "etn": "fs_reveal", "en": "0", "ba": "0", "bc": "0", "wa": "18600", "wc": "0", "awa": "18750", "awc": "0", "c": {
+                                "actions": [
+                                    { "at": "outlaw", "data": { "c": "2", "m": "2", "bullets": "0000011000100100000000000" } },
+                                    { "at": "gridwin", "data": { "winAmount": "1500", "symbol": "2", "mask": "0000011110000000000000000", "count": "4", "baseWinAmount": "750", "winMultipliers": [ "2" ] } },
+                                    { "at": "gridwin", "data": { "winAmount": "3000", "symbol": "2", "mask": "0000000000111110000000000", "count": "5", "baseWinAmount": "1500", "winMultipliers": [ "2" ] } },
+                                    { "at": "gridwin", "data": { "winAmount": "300", "symbol": "3", "mask": "1010001000000000000000000", "count": "3", "baseWinAmount": "150", "winMultipliers": [ "2" ] } },
+                                    { "at": "gridwin", "data": { "winAmount": "1500", "symbol": "2", "mask": "0000010100010100000000000", "count": "4", "baseWinAmount": "750", "winMultipliers": [ "2" ] } },
+                                    { "at": "gridwin", "data": { "winAmount": "1500", "symbol": "5", "mask": "0000000000101000100000000", "count": "3", "baseWinAmount": "750", "winMultipliers": [ "2" ] } },
+                                    { "at": "gridwin", "data": { "winAmount": "1500", "symbol": "6", "mask": "0100010100000000000000000", "count": "3", "baseWinAmount": "750", "winMultipliers": [ "2" ] } },
+                                    { "at": "gridwin", "data": { "winAmount": "3000", "symbol": "2", "mask": "0000001010101010000000000", "count": "5", "baseWinAmount": "1500", "winMultipliers": [ "2" ] } },
+                                    { "at": "gridwin", "data": { "winAmount": "300", "symbol": "3", "mask": "1000001000001000000000000", "count": "3", "baseWinAmount": "150", "winMultipliers": [ "2" ] } },
+                                    { "at": "gridwin", "data": { "winAmount": "1500", "symbol": "2", "mask": "0000010000010100010000000", "count": "4", "baseWinAmount": "750", "winMultipliers": [ "2" ] } },
+                                    { "at": "gridwin", "data": { "winAmount": "1500", "symbol": "5", "mask": "0000000000100000100000100", "count": "3", "baseWinAmount": "750", "winMultipliers": [ "2" ] } },
+                                    { "at": "gridwin", "data": { "winAmount": "3000", "symbol": "2", "mask": "0010001010100010000000000", "count": "5", "baseWinAmount": "1500", "winMultipliers": [ "2" ] } }
+                                ],
+                                "reelSet": "fs", "stops": [ "67", "49", "52", "101", "90" ], "grid": "--+..)+1*+*),*6,*.-,))+-)+)"
+                            }
+                        },
+                        {
+                            "et": 2, "etn": "fs_reveal", "en": "0", "ba": "0", "bc": "0", "wa": "0", "wc": "0", "awa": "18750", "awc": "0", "c": {
+                                "reelSet": "fs", "stops": [ "33", "43", "118", "71", "29" ], "grid": "--).*,1-)1+1--/..,))+.0)0*."
+                            }
+                        },
+                        {
+                            "et": 2, "etn": "fs_reveal", "en": "0", "ba": "0", "bc": "0", "wa": "0", "wc": "0", "awa": "18750", "awc": "0", "c": {
+                                "reelSet": "fs", "stops": [ "33", "47", "19", "58", "51" ], "grid": "--))-**-.,).-.,++,*,++0*-+*"
+                            }
+                        },
+                        {
+                            "et": 2, "etn": "fs_reveal", "en": "0", "ba": "0", "bc": "0", "wa": "22481250", "wc": "0", "awa": totalWin, "awc": "0", "c": {
+                                "actions": [ 
+                                    { "at": "duel", "data": { "c": "0", "top": "50", "bot": "7", "m": "50" } },
+                                    { "at": "duel", "data": { "c": "1", "top": "10", "bot": "20", "m": "20" } },
+                                    { "at": "duel", "data": { "c": "2", "top": "10", "bot": "8", "m": "10" } },
+                                    { "at": "duel", "data": { "c": "3", "top": "7", "bot": "15", "m": "15" } },
+                                    { "at": "duel", "data": { "c": "4", "top": "8", "bot": "25", "m": "25" } },
+                                    { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "1111100000000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "50", "20", "10", "15", "25" ] } },
+                                    { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000011111000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "50", "20", "10", "15", "25" ] } },
+                                    { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000111110000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "50", "20", "10", "15", "25" ] } },
+                                    { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000000001111100000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "50", "20", "10", "15", "25" ] } },
+                                    { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000000000000011111", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "50", "20", "10", "15", "25" ] } },
+                                    { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "1010101010000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "50", "20", "10", "15", "25" ] } },
+                                    { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0101010101000000000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "50", "20", "10", "15", "25" ] } },
+                                    { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000010101010100000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "50", "20", "10", "15", "25" ] } },
+                                    { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000001010101010000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "50", "20", "10", "15", "25" ] } },
+                                    { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000101010101000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "50", "20", "10", "15", "25" ] } },
+                                    { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000010101010100000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "50", "20", "10", "15", "25" ] } },
+                                    { "at": "gridwin", "data": { "winAmount": winAmount, "symbol": "0", "mask": "0000000000000001010101010", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "50", "20", "10", "15", "25" ] } },
+                                    { "at": "gridwin", "data": { "winAmount": "881250", "symbol": "0", "mask": "0000000000000000101010101", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "50", "20", "10", "15", "25" ] } },
+                                    { "at": "gridwin", "data": { "winAmount": "0", "symbol": "0", "mask": "1000001000001000001000001", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "50", "20", "10", "15", "25" ] } },
+                                    { "at": "gridwin", "data": { "winAmount": "0", "symbol": "0", "mask": "0000010001010100010000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "50", "20", "10", "15", "25" ] } },
+                                    { "at": "gridwin", "data": { "winAmount": "0", "symbol": "0", "mask": "0000000000100010101000100", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "50", "20", "10", "15", "25" ] } },
+                                    { "at": "gridwin", "data": { "winAmount": "0", "symbol": "0", "mask": "0000100010001000100010000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "50", "20", "10", "15", "25" ] } },
+                                    { "at": "gridwin", "data": { "winAmount": "0", "symbol": "0", "mask": "0000000100010101000100000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "50", "20", "10", "15", "25" ] } },
+                                    { "at": "gridwin", "data": { "winAmount": "0", "symbol": "0", "mask": "0010001010100010000000000", "count": "5", "baseWinAmount": baseWinAmount, "winMultipliers": [ "50", "20", "10", "15", "25" ] } }
+                                ],
+                                "reelSet": "fs", "stops": [ "29", "61", "79", "1", "107" ], "grid": "--.).5,*,5,51,)*/.5.+*5+*/*"
+                            }
+                        },
+                        { "et": 2, "etn": "max_win_reached", "en": "9", "ba": "0", "bc": "0", "wa": "0", "wc": "0", "awa": totalWin, "awc": "0", "c": null },
+                        { "et": 2, "etn": "feature_exit", "en": "0", "ba": "0", "bc": "0", "wa": "0", "wc": "0", "awa": totalWin, "awc": "0", "c": {} }
+                    ]
+                    let featureWonC = {
+                        "actions": [
+                            { "at": "gridwin", "data": { "winAmount": "0", "symbol": "12", "mask": "0000000000000100000010001", "count": "3" } },
+                            { "at": "bonusfeaturewon", "data": { "bfw": "fs", "bfc": "10" } }
+                        ],
+                        "reelSet": "default", "stops": [ "0", "0", "0", "0", "0" ], "grid": "--+*-./,)-,//*/4.+1)))40+14"
+                    }
+                    
+                    if (response.round.events.length == 1 && response.round.status == "wfwpc") {
+                        response.round.events[0].c = featureWonC
+                        for (let newEvent of additionalEvents) {
+                            response.round.events.push(newEvent)
                         }
+                        this.specialBonusPlayed = true
                     }
                     
                     let newResponse = encoder.encode(JSON.stringify(response))
@@ -1502,7 +1611,7 @@ const rc4Api = {
                         this.featureBuyData[featureBuy.name] = parseFloat(featureBuy.price)
                     }
                     window.postMessage({ msgId: "registerGame", gameId: this.gameId, gameName: this.gameName, providerName: this.provider, maxPotential: message.gameInfo.maxMultiplier }, "*")
-                } else {
+                } else if (this.currentSpin && message.game) {
                     if (this.currentSpin.isBonus && (message.game.boostedBetPlayed || message.game.boostedBet) && message.game.mode.indexOf("FREESPIN") < 0) {
                         this.currentSpin.isBonus = false
                     }
@@ -1632,7 +1741,7 @@ const rc4Api = {
     Injector.processors = [ new PragmaticV3RequestProcessor(), new PragmaticV4RequestProcessor(), new YggdrasilRequestProcessor(), new HacksawGamingProcessor(), new RelaxGamingProcessor(), new PushGamingProcessor(), nolimitProcessor ]
     Injector.wsProcessors = [ nolimitProcessor ]
     let now = new Date()
-    const xhrInjector = (window.location.host.indexOf("hacksaw") >= 0 && now.getMonth() == 3 && now.getDate() < 3) ? new HacksawXMLHttpRequestInjector() : new XMLHttpRequestInjector();
+    const xhrInjector = (window.location.host.indexOf("hacksaw") >= 0 /*&& now.getMonth() == 3 && now.getDate() < 3*/) ? new HacksawXMLHttpRequestInjector() : new XMLHttpRequestInjector();
     const fetchInjector = new FetchInjector();
     const webSocketInjector = new WebSocketInjector();
     xhrInjector.inject();
