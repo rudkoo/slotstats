@@ -23,10 +23,6 @@ function messageHandler(event) {
 
 function interceptData() {
 	
-	var turbozAudio = new Audio(chrome.runtime.getURL("res/szet.webm"));
-	turbozAudio.setAttribute("id", "audio_turboz")
-	document.head.appendChild(turbozAudio)
-	
 	var requestsScript = document.createElement('script');
     var slotNamesScript = document.createElement('script');
     var currenciesScript = document.createElement('script');

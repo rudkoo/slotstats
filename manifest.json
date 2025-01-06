@@ -48,8 +48,7 @@
             "launchers.js",
             "icons/footer-bg.CTQnNjd-.png",
             "icons/footer-bg-desktop.BG0i3vM6.png",
-            "res/usti.webm",
-            "res/szet.webm"],
+            "res/usti.webm"],
         "matches": [
             "*://*.pragmaticplay.net/*",
             "*://*.ppgames.net/*",
@@ -58,6 +57,7 @@
             "*://*.pafdeixcon.net/*",
             "*://*.dljdrffzxl.net/*",
             "*://*.kaawsdrn.net/*",
+            "*://*.zkodsdnggw.net/*",
             "*://*.sulvlwdwtb.net/*",
             "*://*.fh8labs.com/*",
             "*://*.pff-ygg.com/*",
@@ -70,7 +70,9 @@
             "*://*.pushgaming.com/*",
             "*://*.nolimitcdn.com/*",
             "*://*.nolimitcity.com/*",
+            "*://*.nlcasiacdn.net/*",
             "*://*.evo-games.com/*",
+            "*://*.qtlauncher.com/*",
             "*://*.skin.club/*"
         ]
     }],
@@ -114,6 +116,8 @@
             "*://*.nolimitcdn.com/loader/*",
             "*://*.nolimitcity.com/free-play/*",
             "*://*.nolimitcity.com/load-game/*",
+            "*://*.nlcasiacdn.net/loader/*",
+            "*://*.qtlauncher.com/client/game-launcher.html*",
             "*://*.evo-games.com/*"
         ],
         "run_at": "document_start",

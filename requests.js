@@ -1,7 +1,6 @@
 "use strict";
 
 var recordingActive
-var turbozPlayed = false
 
 const HEX_CHARACTERS = '0123456789abcdef';
 
@@ -779,18 +778,6 @@ const rc4Api = {
                         processor.maxPotential = parseInt(e.gameInfoData.maximumWinMultiplier)
                     }
                 })
-                window.hacksawCasino.PubSub.getChannel("casino").subscribe("enableSuperTurbo", function(e) {
-                    try {
-                        if (!turbozPlayed) {
-                            turbozPlayed = true
-                            var turbozAudio = document.getElementById("audio_turboz")
-                            turbozAudio.volume = 1.0
-                            turbozAudio.play();
-                        }
-                    } catch(ex) {
-                        window.postMessage({ msgId: "log", message: JSON.stringify(ex) }, "*")
-                    }
-                })
                 window.hacksawCasino.PubSub.getChannel("casino").subscribe("initData", function(e) {
                     processor.currency = e.currency
                     processor.isFunMode = e.mode.match(/demo/i) != null
@@ -1550,7 +1537,12 @@ const rc4Api = {
     class NolimitCityProcessor extends RequestProcessor {
         constructor() {
             super()
-            this.uriPatterns = [".*://.*.nolimitcity.com/EjsFrontWeb/fs", ".*://.*.nolimitcity.com/EjsGameWeb/ws/game.*"]
+            this.uriPatterns = [
+                ".*://.*.nlcasia.net/EjsFrontWeb/fs",
+                ".*://.*.nlcasia.net/EjsGameWeb/ws/game.*",
+                ".*://.*.nolimitcity.com/EjsFrontWeb/fs",
+                ".*://.*.nolimitcity.com/EjsGameWeb/ws/game.*"
+            ]
             this.provider = "Nolimit City"
             this.currentSpin = null
             this.currency = null
@@ -1741,7 +1733,7 @@ const rc4Api = {
     Injector.processors = [ new PragmaticV3RequestProcessor(), new PragmaticV4RequestProcessor(), new YggdrasilRequestProcessor(), new HacksawGamingProcessor(), new RelaxGamingProcessor(), new PushGamingProcessor(), nolimitProcessor ]
     Injector.wsProcessors = [ nolimitProcessor ]
     let now = new Date()
-    const xhrInjector = (window.location.host.indexOf("hacksaw") >= 0 /*&& now.getMonth() == 3 && now.getDate() < 3*/) ? new HacksawXMLHttpRequestInjector() : new XMLHttpRequestInjector();
+    const xhrInjector = /*(window.location.host.indexOf("hacksaw") >= 0 && now.getMonth() == 3 && now.getDate() < 3) ? new HacksawXMLHttpRequestInjector() :*/ new XMLHttpRequestInjector();
     const fetchInjector = new FetchInjector();
     const webSocketInjector = new WebSocketInjector();
     xhrInjector.inject();
