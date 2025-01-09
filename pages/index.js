@@ -379,7 +379,6 @@ function updateBetRecord(betStats, isFunGame, sessionId) {
     if (betStats.gameId in gameStatsIndicies) {
         let index = gameStatsIndicies[betStats.gameId]
         let row = table.row(index)
-        table.row(index).draw()
         row.child(format(row.data(), betStatsData[row.data().gameId]))
     }
     if (!sessionId && activeGameId == betStats.gameId) {
