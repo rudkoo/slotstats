@@ -102,3 +102,9 @@
 p.menuitem:hover {
   background-color: lightblue;
 }
+.dataTables_wrapper .dataTables_filter input {
+    background-color: white;
+}
+.dataTables_wrapper .dataTables_filter label {
+    color: #ddd;
+}
